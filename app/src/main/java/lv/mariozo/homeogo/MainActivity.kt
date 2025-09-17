@@ -1,59 +1,40 @@
-// File: app/src/main/java/lv/mariozo/homeogo/MainActivity.kt
+// # 1.  ------ Header ----------------------------------------------------------
+// File: java/lv/mariozo/homeogo/MainActivity.kt
 // Module: HomeoGO
-// Purpose: Compose entry; shows a visible SmokeTestScreen to avoid blank screen
-// Created: 17.sep.2025   17:05
-// ver. 1.1
+// Purpose: Compose host + AndroidX SplashScreen + edge-to-edge
+// Created: 17.sep.2025 (Europe/Riga)
+// ver. 1.3 - Refactored vm to viewModel
+// -----------------------------------------------------------------------------
 
-// # 1.  ------ Package & Imports ---------------------------------------------
 package lv.mariozo.homeogo
 
-// # 1.1  ------ Import fix: add Composable -----------------------------------
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.core.view.WindowCompat
+import androidx.lifecycle.viewmodel.compose.viewModel // Added import for viewModel()
+import lv.mariozo.homeogo.ui.ElzaScreen
 import lv.mariozo.homeogo.ui.theme.HomeoGOTheme
+import lv.mariozo.homeogo.ui.viewmodel.ElzaViewModel // Added import for ElzaViewModel
 
-// # 2.  ------ Activity --------------------------------------------------------
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // AndroidX Core SplashScreen (Android 12+ native + backport uz vecākām)
+        installSplashScreen()
+
+        // Edge-to-edge
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
         setContent {
             HomeoGOTheme {
-                // LV: “Dūmu tests” – skaidri redzams ekrāns (lai izslēgtu tukšu kompozīciju)
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    SmokeTestScreen()
-                }
+                // Obtain an instance of ElzaViewModel
+                val elzaViewModel: ElzaViewModel = viewModel()
+                // Pass the ViewModel instance as 'viewModel'
+                ElzaScreen(viewModel = elzaViewModel)
             }
         }
-    }
-}
-
-// # 3.  ------ Smoke Test Screen ----------------------------------------------
-// EN text; LV comments allowed per protocol.
-@Composable
-private fun SmokeTestScreen() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "HomeoGO is running 🚀",
-            fontSize = 22.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onBackground
-        )
     }
 }
