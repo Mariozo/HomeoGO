@@ -2,7 +2,7 @@
 // Module: HomeoGO
 // Purpose: Compose UI screen for Elza (STT + TTS skeleton).
 // Created: 17.sep.2025 23:15
-// ver. 1.0
+// ver. 1.1 - Adapted to use ElzaViewModel's uiState
 
 package lv.mariozo.homeogo.ui
 
@@ -10,14 +10,33 @@ package lv.mariozo.homeogo.ui
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import lv.mariozo.homeogo.ui.viewmodel.ElzaViewModel // Changed this import to reflect new ViewModel package
+import lv.mariozo.homeogo.ui.viewmodel.ElzaViewModel
 
 /**
  * Pure UI layer (Compose). It observes the ViewModel state and triggers actions.
@@ -25,16 +44,15 @@ import lv.mariozo.homeogo.ui.viewmodel.ElzaViewModel // Changed this import to r
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ElzaScreen(vm: ElzaViewModel) { // Changed this line
-    val status by vm.status.collectAsState()
-    val recognizedText by vm.recognizedText.collectAsState()
+fun ElzaScreen(vm: ElzaViewModel) {
+    val uiState by vm.uiState.collectAsState()
 
     // Ask microphone permission once
     var askedPermission by remember { mutableStateOf(false) }
     val micPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (!granted) vm.setStatus("Mikrofona atļauja liegta")
+        if (!granted) vm.reportPermissionDenied() // Updated call
     }
 
     LaunchedEffect(Unit) {
@@ -56,15 +74,15 @@ fun ElzaScreen(vm: ElzaViewModel) { // Changed this line
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = status,
+                text = uiState.status, // Updated access
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.Center
             )
 
             OutlinedTextField(
-                value = recognizedText,
-                onValueChange = { /* read-only; keep from STT */ },
+                value = uiState.recognizedText, // Updated access
+                onValueChange = { /* read-only; value comes from ViewModel */ },
                 label = { Text("Atpazītais teksts") },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -72,20 +90,21 @@ fun ElzaScreen(vm: ElzaViewModel) { // Changed this line
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
                     onClick = { vm.startListening() },
-                    enabled = !vm.isListening
+                    enabled = !uiState.isListening // Updated access
                 ) { Text("Runā") }
 
                 OutlinedButton(
                     onClick = { vm.stopListening() },
-                    enabled = vm.isListening
+                    enabled = uiState.isListening // Updated access
                 ) { Text("Stop") }
             }
 
-            HorizontalDivider() // Changed this line
+            HorizontalDivider()
 
             Button(
-                onClick = { vm.speakReply() },
-                modifier = Modifier.fillMaxWidth()
+                onClick = { vm.speak(uiState.recognizedText) }, // Updated call
+                modifier = Modifier.fillMaxWidth(),
+                enabled = uiState.recognizedText.isNotBlank() // Enable only if there's text
             ) { Text("Nolasīt atbildi (TTS)") }
 
             Text(

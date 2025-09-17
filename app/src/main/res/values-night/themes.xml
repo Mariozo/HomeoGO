@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!-- File: app/src/main/res/values-night/themes.xml
+    Module: HomeoGO
+    Purpose: Night overrides for window-level styling before Compose renders
+    Created: 17.sep.2025   16:35
+    ver. 1.0                                                         -->
+
+<!-- # 1. Resources root                                              -->
+<resources>
+
+    <!-- # 2. Theme.HomeoGO definition (night)                            -->
+    <style name="Theme.HomeoGO" parent="Theme.Material3.DayNight">
+
+        <!-- Window appearance before Compose draws (night)                   -->
+        <item name="android:windowBackground">@android:color/black</item>
+
+        <!-- Edge-to-edge baseline colors (night)                             -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
+</resources>

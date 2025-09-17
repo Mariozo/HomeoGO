@@ -1,93 +1,109 @@
 
-// File: java/lv/mariozo/homeogo/viewmodel/ElzaViewModel.kt
-// Module: HomeoGO
-// Purpose: ViewModel bridging UI and voice managers (STT/TTS).
-// Created: 17.sep.2025 23:15
-// ver. 1.2 (More diagnostic status updates added)
-
-package lv.mariozo.homeogo.ui.viewmodel // Changed package to match directory structure
+package lv.mariozo.homeogo.ui.viewmodel
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
-import lv.mariozo.homeogo.speech.SpeechRecognizerManager // Corrected import
-import lv.mariozo.homeogo.voice.TTSManager // This import is correct
+import kotlinx.coroutines.flow.asStateFlow
+// Removed incorrect: import kotlinx.coroutines.flow.launch
+import kotlinx.coroutines.launch // Added correct import for launch, though viewModelScope.launch often suffices
+import lv.mariozo.homeogo.speech.SpeechRecognizerManager
+import lv.mariozo.homeogo.voice.TTSManager
 
-/**
- * ElzaViewModel mediates between UI and the voice managers (STT/TTS).
- * Keeps UI state as StateFlows.
- */
-class ElzaViewModel(app: Application) : AndroidViewModel(app) { // Changed this line
+data class ElzaUiState(
+    val status: String = "Idle",
+    val recognizedText: String = "",
+    val isListening: Boolean = false
+)
 
-    private val stt = SpeechRecognizerManager(app)
+class ElzaViewModel(app: Application) : AndroidViewModel(app) {
+
+    private val _uiState = MutableStateFlow(ElzaUiState())
+    val uiState = _uiState.asStateFlow()
+
     private val tts = TTSManager(app)
-
-    private val _status = MutableStateFlow("Gatava klausīties")
-    val status: StateFlow<String> = _status
-
-    private val _recognizedText = MutableStateFlow("")
-    val recognizedText: StateFlow<String> = _recognizedText
-
-    var isListening: Boolean = false
-        private set
+    private val srm = SpeechRecognizerManager(context = app, scope = viewModelScope)
 
     init {
-        // Wire STT callbacks to state
-        stt.onStatusChanged = { msg ->
-            viewModelScope.launch { _status.emit(msg) }
-        }
-        stt.onPartial = { partial ->
-            viewModelScope.launch {
-                _recognizedText.emit("PARTIAL: $partial") // Diagnostic prefix for text field
-                _status.emit("EVM: Partial: '$partial'")  // Diagnostic status update
+        viewModelScope.launch {
+            srm.status.collect { srmStatus ->
+                _uiState.value = _uiState.value.copy(status = mapSrmStatusToUiStatus(srmStatus))
             }
         }
-        stt.onFinal = { text ->
-            isListening = false
-            viewModelScope.launch {
-                _recognizedText.emit("FINAL: $text") // Diagnostic prefix for text field
-                // Diagnostic status update (will temporarily override the original status update here)
-                _status.emit("EVM: Final: '$text'") 
-                // Original status update (commented out for diagnostics):
-                // _status.emit(if (text.isNotBlank()) "Gatava klausīties" else "Nekas netika atpazīts")
+
+        viewModelScope.launch {
+            srm.isListening.collect { listening ->
+                val currentStatus = _uiState.value.status
+                _uiState.value = _uiState.value.copy(
+                    isListening = listening,
+                    status = if (listening) "Listening..." else if (currentStatus == "Listening...") "Idle" else currentStatus
+                )
             }
         }
-        stt.onError = { code ->
-            isListening = false
-            viewModelScope.launch { _status.emit("Kļūda ($code)") }
+
+        srm.onPartial = { partialText ->
+            _uiState.value = _uiState.value.copy(
+                recognizedText = partialText,
+                status = if (_uiState.value.isListening) "Partial..." else _uiState.value.status
+            )
+        }
+
+        srm.onFinal = { finalText ->
+            _uiState.value = _uiState.value.copy(
+                recognizedText = finalText,
+                status = if (finalText.isNotEmpty()) "Final ✓" else "Nothing recognized",
+                isListening = false
+            )
+        }
+
+        srm.onError = { errorCode ->
+            _uiState.value = _uiState.value.copy(
+                status = "Error (code: $errorCode)",
+                isListening = false
+            )
         }
     }
 
-    fun setStatus(s: String) {
-        viewModelScope.launch { _status.emit(s) }
+    private fun mapSrmStatusToUiStatus(srmStatus: String): String {
+        return when {
+            srmStatus.startsWith("SRM_ON_ERROR_CODE:") -> "Error processing speech"
+            srmStatus.startsWith("SRM_FINAL_RAW:") -> "Processing result..."
+            srmStatus.startsWith("SRM_PARTIAL_RAW:") && _uiState.value.isListening -> "Listening..."
+            srmStatus == "Idle" && !_uiState.value.isListening -> "Idle"
+            srmStatus.contains("Listening…", ignoreCase = true) && _uiState.value.isListening -> "Listening..."
+            srmStatus.contains("Speak!", ignoreCase = true) && _uiState.value.isListening -> "Speak now"
+            srmStatus.contains("Processing…", ignoreCase = true) -> "Processing..."
+            srmStatus == "Idle" && (_uiState.value.status.contains("Error") || _uiState.value.status.contains("Final")) -> _uiState.value.status
+            else -> if (_uiState.value.isListening) "Listening..." else "Idle"
+        }
     }
 
     fun startListening() {
-        isListening = true
-        viewModelScope.launch {
-            _recognizedText.emit("") // Clear previous text
-            stt.start()
-        }
+        srm.start()
+        _uiState.value = _uiState.value.copy(recognizedText = "")
     }
 
     fun stopListening() {
-        isListening = false
-        stt.stop()
-        viewModelScope.launch { _status.emit("Gatava klausīties") }
+        srm.stop()
     }
 
-    fun speakReply() {
-        val txt = recognizedText.value
-        val reply = if (txt.isNotBlank()) "Tu teici: $txt" else "Nav ko nolasīt."
-        tts.speak(reply)
+    fun speak(text: String) {
+        if (text.isNotBlank()) {
+            tts.speak(text)
+            _uiState.value = _uiState.value.copy(status = "Speaking...")
+        } else {
+            _uiState.value = _uiState.value.copy(status = "Nothing to speak")
+        }
+    }
+
+    fun reportPermissionDenied() {
+        _uiState.value = _uiState.value.copy(status = "Microphone permission denied", isListening = false)
     }
 
     override fun onCleared() {
         super.onCleared()
-        stt.release()
         tts.release()
+        srm.release()
     }
 }
