@@ -2,7 +2,7 @@
 // Module: HomeoGO
 // Purpose: Compose UI for Elza (STT + TTS test + Settings dialog + Previews)
 // Created: 19.sep.2025 23:10
-// ver. 1.6.1
+// ver. 1.7
 
 package lv.mariozo.homeogo.ui
 
