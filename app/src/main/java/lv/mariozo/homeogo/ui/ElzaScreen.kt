@@ -55,6 +55,9 @@ import lv.mariozo.homeogo.voice.TTSManager
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import lv.mariozo.homeogo.voice.AzureTts
 
 
 // # 2. ------- Modeļi ------------------------------------------------------------
@@ -86,9 +89,9 @@ fun ElzaScreen(modifier: Modifier = Modifier) {
     val activity = context as? Activity
 
     // STT manager
-    val tts = androidx.compose.runtime.remember(context) { TTSManager(context) }
+    val tts = androidx.compose.runtime.remember(context) { TTSManager(context) }    // System TTS
     val srm = androidx.compose.runtime.remember(activity) { activity?.let { SpeechRecognizerManager(it) } }
-
+    val azureTts = remember(context) { AzureTts(context) }      // Azure TTS
 
     // StateFlow → Compose state (bez lifecycle extension)
     val sttState by (srm?.state?.collectAsState(initial = SpeechRecognizerManager.SttState.Idle)
@@ -191,8 +194,8 @@ fun ElzaScreen(modifier: Modifier = Modifier) {
 
                 Button(
                     onClick = {
-                        // Pagaidām tikai runā testa frāzi.
-                        tts.speak("Sveiki! Šis ir Elzas testa teikums latviešu valodā.")
+                        Toast.makeText(context, "TEST → Azure (Everita)", Toast.LENGTH_SHORT).show()
+                        azureTts.speakBlocking("Sveiki! Šis ir Elzas balss tests.")
                     },
                     enabled = !speaking,
                     shape = RoundedCornerShape(24.dp)

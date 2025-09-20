@@ -12,6 +12,7 @@
 
     <!-- Declare RECORD_AUDIO permission -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <!-- # 2. Application (base XML theme)                                -->
     <application

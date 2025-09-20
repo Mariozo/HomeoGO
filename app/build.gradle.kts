@@ -10,12 +10,20 @@ android {
 
     defaultConfig {
         applicationId = "lv.mariozo.homeogo"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "AZURE_SPEECH_KEY", "\"${project.properties["AZURE_SPEECH_KEY"]}\"")
+        buildConfigField("String", "AZURE_SPEECH_REGION", "\"${project.properties["AZURE_SPEECH_REGION"]}\"")
+    }
+
+    defaultConfig {
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
     }
 
     buildTypes {
@@ -36,11 +44,16 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
+    }
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.13" // Added for Kotlin 2.0.21
     }
 }
 
 dependencies {
 
+    implementation("com.microsoft.cognitiveservices.speech:client-sdk:1.46.0")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -50,6 +63,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3) // For Compose Material 3
+    implementation(libs.androidx.compose.material.icons.core) // Added for icons
+    implementation(libs.androidx.compose.material.icons.extended) // Added for icons
     implementation(libs.material) // Added for XML Material themes
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
@@ -59,4 +74,9 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     implementation(libs.androidx.core.splashscreen)
+    implementation(libs.okhttp3)
+    implementation(libs.exoplayer)
+    // implementation(libs.material3) // Removed this duplicate
+    // implementation(libs.lifecycle.runtime.compose) // Removed this line, as specific version below is used
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.6.2")
 }

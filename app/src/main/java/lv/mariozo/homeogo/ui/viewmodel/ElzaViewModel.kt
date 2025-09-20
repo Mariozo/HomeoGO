@@ -6,8 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-// Removed incorrect: import kotlinx.coroutines.flow.launch
-import kotlinx.coroutines.launch // Added correct import for launch, though viewModelScope.launch often suffices
+import kotlinx.coroutines.launch
 import lv.mariozo.homeogo.speech.SpeechRecognizerManager
 import lv.mariozo.homeogo.voice.TTSManager
 
@@ -27,65 +26,56 @@ class ElzaViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         viewModelScope.launch {
-            srm.status.collect { srmStatus ->
-                _uiState.value = _uiState.value.copy(status = mapSrmStatusToUiStatus(srmStatus))
+            srm.state.collect { srmState ->
+                when (srmState) {
+                    is SpeechRecognizerManager.SttState.Idle -> {
+                        _uiState.value = _uiState.value.copy(
+                            status = "Idle",
+                            // Optionally clear recognizedText: recognizedText = "",
+                            isListening = false
+                        )
+                    }
+                    is SpeechRecognizerManager.SttState.Listening -> {
+                        _uiState.value = _uiState.value.copy(
+                            status = "Listening...",
+                            isListening = true
+                        )
+                    }
+                    is SpeechRecognizerManager.SttState.Partial -> {
+                        _uiState.value = _uiState.value.copy(
+                            recognizedText = srmState.text,
+                            status = "Partial...",
+                            isListening = true
+                        )
+                    }
+                    is SpeechRecognizerManager.SttState.Final -> {
+                        _uiState.value = _uiState.value.copy(
+                            recognizedText = srmState.text,
+                            status = if (srmState.text.isNotEmpty()) "Final ✓" else "Nothing recognized",
+                            isListening = false
+                        )
+                    }
+                    is SpeechRecognizerManager.SttState.Error -> {
+                        _uiState.value = _uiState.value.copy(
+                            status = "Error: ${srmState.message}",
+                            recognizedText = _uiState.value.recognizedText, // Keep existing text on error
+                            isListening = false
+                        )
+                    }
+                }
             }
-        }
-
-        viewModelScope.launch {
-            srm.isListening.collect { listening ->
-                val currentStatus = _uiState.value.status
-                _uiState.value = _uiState.value.copy(
-                    isListening = listening,
-                    status = if (listening) "Listening..." else if (currentStatus == "Listening...") "Idle" else currentStatus
-                )
-            }
-        }
-
-        srm.onPartial = { partialText ->
-            _uiState.value = _uiState.value.copy(
-                recognizedText = partialText,
-                status = if (_uiState.value.isListening) "Partial..." else _uiState.value.status
-            )
-        }
-
-        srm.onFinal = { finalText ->
-            _uiState.value = _uiState.value.copy(
-                recognizedText = finalText,
-                status = if (finalText.isNotEmpty()) "Final ✓" else "Nothing recognized",
-                isListening = false
-            )
-        }
-
-        srm.onError = { errorCode ->
-            _uiState.value = _uiState.value.copy(
-                status = "Error (code: $errorCode)",
-                isListening = false
-            )
-        }
-    }
-
-    private fun mapSrmStatusToUiStatus(srmStatus: String): String {
-        return when {
-            srmStatus.startsWith("SRM_ON_ERROR_CODE:") -> "Error processing speech"
-            srmStatus.startsWith("SRM_FINAL_RAW:") -> "Processing result..."
-            srmStatus.startsWith("SRM_PARTIAL_RAW:") && _uiState.value.isListening -> "Listening..."
-            srmStatus == "Idle" && !_uiState.value.isListening -> "Idle"
-            srmStatus.contains("Listening…", ignoreCase = true) && _uiState.value.isListening -> "Listening..."
-            srmStatus.contains("Speak!", ignoreCase = true) && _uiState.value.isListening -> "Speak now"
-            srmStatus.contains("Processing…", ignoreCase = true) -> "Processing..."
-            srmStatus == "Idle" && (_uiState.value.status.contains("Error") || _uiState.value.status.contains("Final")) -> _uiState.value.status
-            else -> if (_uiState.value.isListening) "Listening..." else "Idle"
         }
     }
 
     fun startListening() {
-        srm.start()
-        _uiState.value = _uiState.value.copy(recognizedText = "")
+        srm.startListening()
+        // Update UI optimistically, srm.state will provide the authoritative state shortly
+        _uiState.value = _uiState.value.copy(recognizedText = "", status = "Initializing...", isListening = true)
     }
 
     fun stopListening() {
-        srm.stop()
+        srm.stopListening()
+        // UI state will be updated via srm.state flow (e.g., to Idle or Error)
     }
 
     fun speak(text: String) {
@@ -104,6 +94,6 @@ class ElzaViewModel(app: Application) : AndroidViewModel(app) {
     override fun onCleared() {
         super.onCleared()
         tts.release()
-        srm.release()
+        srm.destroyRecognizer()
     }
 }

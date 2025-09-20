@@ -9,43 +9,53 @@
 package lv.mariozo.homeogo.voice
 
 import android.content.Context
-import com.microsoft.cognitiveservices.speech.CancellationDetails
+import android.widget.Toast
 import com.microsoft.cognitiveservices.speech.ResultReason
 import com.microsoft.cognitiveservices.speech.SpeechConfig
+import com.microsoft.cognitiveservices.speech.SpeechSynthesisCancellationDetails
+import com.microsoft.cognitiveservices.speech.SpeechSynthesisResult
 import com.microsoft.cognitiveservices.speech.SpeechSynthesizer
 import com.microsoft.cognitiveservices.speech.audio.AudioConfig
 import lv.mariozo.homeogo.BuildConfig
 
+
 class AzureTts(context: Context) : AutoCloseable {
+
+    private val ctx = context.applicationContext
+
     private val speechConfig: SpeechConfig =
         SpeechConfig.fromSubscription(
             BuildConfig.AZURE_SPEECH_KEY,
             BuildConfig.AZURE_SPEECH_REGION
-        )
+        ).apply {
+            speechSynthesisLanguage = "lv-LV"
+            speechSynthesisVoiceName = "lv-LV-EveritaNeural"
+        }
 
     private val audioConfig: AudioConfig = AudioConfig.fromDefaultSpeakerOutput()
-    private val synthesizer: SpeechSynthesizer =
-        SpeechSynthesizer(speechConfig, audioConfig)
+    private val synthesizer: SpeechSynthesizer = SpeechSynthesizer(speechConfig, audioConfig)
 
     fun speakBlocking(text: String) {
         if (text.isBlank()) return
         try {
-            // Synchronous call (no futures, no .get())
-            val result = synthesizer.SpeakText(text)
+            Toast.makeText(ctx, "Azure TTS: start…", Toast.LENGTH_SHORT).show()
+            val result: SpeechSynthesisResult = synthesizer.SpeakText(text)
 
             when (result.reason) {
                 ResultReason.SynthesizingAudioCompleted -> {
-                    // OK
+                    Toast.makeText(ctx, "Azure TTS: completed (Everita)", Toast.LENGTH_SHORT).show()
                 }
                 ResultReason.Canceled -> {
-                    val details = CancellationDetails.fromResult(result)
-                    // (pagaidām neko nedaram; ja vajadzēs, varam logot details.errorDetails)
+                    val details = SpeechSynthesisCancellationDetails.fromResult(result)
+                    Toast.makeText(ctx, "Azure TTS canceled: ${details.errorDetails}", Toast.LENGTH_LONG).show()
                 }
-                else -> { /* ignore */ }
+                else -> {
+                    Toast.makeText(ctx, "Azure TTS: result=$result", Toast.LENGTH_SHORT).show()
+                }
             }
             result.close()
         } catch (t: Throwable) {
-            // Klusa aizsardzība; ja vajadzēs — iemetīsim logu/Toast
+            Toast.makeText(ctx, "Azure TTS error: ${t.message}", Toast.LENGTH_LONG).show()
         }
     }
 
