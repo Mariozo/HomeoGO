@@ -53,6 +53,8 @@ import androidx.compose.ui.unit.dp
 import lv.mariozo.homeogo.speech.SpeechRecognizerManager
 import lv.mariozo.homeogo.voice.TTSManager
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 
 
 // # 2. ------- Modeļi ------------------------------------------------------------
@@ -84,7 +86,9 @@ fun ElzaScreen(modifier: Modifier = Modifier) {
     val activity = context as? Activity
 
     // STT manager
+    val tts = androidx.compose.runtime.remember(context) { TTSManager(context) }
     val srm = androidx.compose.runtime.remember(activity) { activity?.let { SpeechRecognizerManager(it) } }
+
 
     // StateFlow → Compose state (bez lifecycle extension)
     val sttState by (srm?.state?.collectAsState(initial = SpeechRecognizerManager.SttState.Idle)
@@ -99,6 +103,12 @@ fun ElzaScreen(modifier: Modifier = Modifier) {
         else -> ElzaUiState.Idle
     }
 
+    LaunchedEffect(uiState) {
+        if (uiState is ElzaUiState.Final) {
+            val text = uiState.text.ifBlank { "Sapratu." }
+            tts.speak(text)
+        }
+    }
     // Mikrofona atļauja
     var hasPermission by rememberSaveable { mutableStateOf(false) }
     val requestPermission = rememberLauncherForActivityResult(
@@ -118,7 +128,7 @@ fun ElzaScreen(modifier: Modifier = Modifier) {
     DisposableEffect(srm) { onDispose { srm?.stopListening() } }
 
     // TTS (šobrīd izmantojam tikai speak)
-    val tts = androidx.compose.runtime.remember(context) { TTSManager(context) }
+    //val tts = androidx.compose.runtime.remember(context) { TTSManager(context) }
     // Ja tavā TTSManager ir shutdown()/release(), paziņo man — pielikšu atpakaļ.
 
     var showSettings by rememberSaveable { mutableStateOf(false) }
