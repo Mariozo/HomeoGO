@@ -1,30 +1,47 @@
-
 // File: app/src/main/java/lv/mariozo/homeogo/ui/ElzaScreen.kt
 // Module: HomeoGO
-// Purpose: Compose UI for Elza (STT/TTS) with settings (voice engine, theme, rate/pitch) + Previews
-// Created: 19.sep.2025 22:20 (Europe/Riga)
-// ver. 1.5
+// Purpose: Compose UI for Elza (STT + TTS test + Settings dialog + Previews)
+// Created: 19.sep.2025 23:10
+// ver. 1.6.1
 
 package lv.mariozo.homeogo.ui
 
-// # --- 1 ------- Imports --------------------------------------------------------
-
+// # 1. ------- Imports -----------------------------------------------------------
+import android.Manifest
 import android.app.Activity
 import android.content.res.Configuration
-import android.Manifest
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Stop
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -34,17 +51,19 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import lv.mariozo.homeogo.speech.SpeechRecognizerManager
-import androidx.compose.material3.ExperimentalMaterial3Api // Added this import
+import lv.mariozo.homeogo.voice.TTSManager
+import androidx.compose.material3.ExperimentalMaterial3Api
 
-// ---- Models --------------------------------------------------------------
+
+// # 2. ------- Modeļi ------------------------------------------------------------
 enum class TtsChoice { System, Elza }
 enum class ThemeChoice { System, Light, Dark }
 
 data class ElzaSettings(
     val ttsChoice: TtsChoice = TtsChoice.Elza,
     val themeChoice: ThemeChoice = ThemeChoice.System,
-    val speakingRate: Float = 1.0f,
-    val speakingPitch: Float = 0.0f
+    val speakingRate: Float = 1.0f,   // 0.5..1.5 (pagaidām neizmantojam)
+    val speakingPitch: Float = 0.0f   // semitoni (pagaidām neizmantojam)
 )
 
 sealed interface ElzaUiState {
@@ -57,23 +76,19 @@ sealed interface ElzaUiState {
     data class Final(val text: String) : ElzaUiState
 }
 
-// ---- Screen -------------------------------------------------------------------
-@OptIn(ExperimentalMaterial3Api::class) // Added this annotation
+// # 3. ------- Ekrāns ------------------------------------------------------------
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ElzaScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val activity = context as? Activity
 
-    // STT manager (pašā ekrānā, bez VM — vienkāršībai)
-    val srm = remember(activity) { activity?.let { SpeechRecognizerManager(it) } }
+    // STT manager
+    val srm = androidx.compose.runtime.remember(activity) { activity?.let { SpeechRecognizerManager(it) } }
 
-    // STT state -> UI state (vienkāršā compose collect bez lifecycle lib)
-    val sttState by remember(srm) { srm?.state ?: mutableStateOf(SpeechRecognizerManager.SttState.Idle) }
-        .let { flowOrState ->
-            // ja srm == null, dodam vienkāršu State; ja ir StateFlow, collectējam
-            if (srm != null) srm.state.collectAsState(initial = SpeechRecognizerManager.SttState.Idle)
-            else mutableStateOf(SpeechRecognizerManager.SttState.Idle)
-        }
+    // StateFlow → Compose state (bez lifecycle extension)
+    val sttState by (srm?.state?.collectAsState(initial = SpeechRecognizerManager.SttState.Idle)
+        ?: androidx.compose.runtime.remember { mutableStateOf(SpeechRecognizerManager.SttState.Idle) })
 
     val uiState = when (sttState) {
         is SpeechRecognizerManager.SttState.Idle      -> ElzaUiState.Idle
@@ -81,7 +96,6 @@ fun ElzaScreen(modifier: Modifier = Modifier) {
         is SpeechRecognizerManager.SttState.Partial   -> ElzaUiState.Partial((sttState as SpeechRecognizerManager.SttState.Partial).text)
         is SpeechRecognizerManager.SttState.Final     -> ElzaUiState.Final((sttState as SpeechRecognizerManager.SttState.Final).text)
         is SpeechRecognizerManager.SttState.Error     -> ElzaUiState.Error((sttState as SpeechRecognizerManager.SttState.Error).message)
-        // ja nākotnē ko pieliks
         else -> ElzaUiState.Idle
     }
 
@@ -100,10 +114,12 @@ fun ElzaScreen(modifier: Modifier = Modifier) {
         else requestPermission.launch(Manifest.permission.RECORD_AUDIO)
     }
 
-    // Stop, kad ekrāns pazūd
-    DisposableEffect(srm) {
-        onDispose { srm?.stopListening() }
-    }
+    // Stop klausīšanos, kad ekrāns pazūd
+    DisposableEffect(srm) { onDispose { srm?.stopListening() } }
+
+    // TTS (šobrīd izmantojam tikai speak)
+    val tts = androidx.compose.runtime.remember(context) { TTSManager(context) }
+    // Ja tavā TTSManager ir shutdown()/release(), paziņo man — pielikšu atpakaļ.
 
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var settings by rememberSaveable(stateSaver = settingsSaver()) { mutableStateOf(ElzaSettings()) }
@@ -127,8 +143,10 @@ fun ElzaScreen(modifier: Modifier = Modifier) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
+            // Statusa karte
             StatusBlock(uiState)
 
+            // Pamatpogas
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -163,12 +181,8 @@ fun ElzaScreen(modifier: Modifier = Modifier) {
 
                 Button(
                     onClick = {
-                        // Te vēlāk ieliksi TTS (TtsRouter/TTSManager); šobrīd tikai demo
-                        Toast.makeText(
-                            context,
-                            "TTS tests: ${settings.ttsChoice}, rate=${settings.speakingRate}, pitch=${settings.speakingPitch}",
-                            Toast.LENGTH_LONG
-                        ).show()
+                        // Pagaidām tikai runā testa frāzi.
+                        tts.speak("Sveiki! Šis ir Elzas testa teikums latviešu valodā.")
                     },
                     enabled = !speaking,
                     shape = RoundedCornerShape(24.dp)
@@ -192,7 +206,7 @@ fun ElzaScreen(modifier: Modifier = Modifier) {
     }
 }
 
-// ---- UI daļas ---------------------------------------------------------------
+// # 4. ------- Status bloks ------------------------------------------------------
 @Composable
 private fun StatusBlock(uiState: ElzaUiState) {
     val text = when (uiState) {
@@ -225,6 +239,7 @@ private fun StatusBlock(uiState: ElzaUiState) {
     }
 }
 
+// # 5. ------- Settings dialogs --------------------------------------------------
 @Composable
 private fun SettingsDialog(
     initial: ElzaSettings,
@@ -238,7 +253,11 @@ private fun SettingsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = { onApply(ElzaSettings(ttsChoice, themeChoice, rate, pitch)) }) { Text("Labi") } },
+        confirmButton = {
+            TextButton(onClick = { onApply(ElzaSettings(ttsChoice, themeChoice, rate, pitch)) }) {
+                Text("Labi")
+            }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Atcelt") } },
         title = { Text("Iestatījumi", fontWeight = FontWeight.SemiBold) },
         text = {
@@ -285,11 +304,11 @@ private fun SettingsDialog(
     )
 }
 
-// Saver priekš Settings
+// # 6. ------- Saver -------------------------------------------------------------
 private fun settingsSaver(): Saver<ElzaSettings, Any> = Saver(
     save = { listOf(it.ttsChoice.name, it.themeChoice.name, it.speakingRate, it.speakingPitch) },
-    restore = {
-        val l = it as List<*>
+    restore = { raw ->
+        val l = raw as List<*>
         ElzaSettings(
             ttsChoice = TtsChoice.valueOf(l[0] as String),
             themeChoice = ThemeChoice.valueOf(l[1] as String),
@@ -299,7 +318,7 @@ private fun settingsSaver(): Saver<ElzaSettings, Any> = Saver(
     }
 )
 
-// ---- Preview -------------------------------------------------------------------
+// # 7. ------- Previews ----------------------------------------------------------
 @Preview(name = "Elza — Light", showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_NO)
 @Preview(name = "Elza — Dark",  showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
