@@ -1,4 +1,11 @@
 
+// File: app/src/main/java/lv/mariozo/homeogo/ui/viewmodel/ElzaViewModel.kt
+// Module: HomeoGO
+// Purpose: ViewModel for ElzaScreen (manages UI state, connects STT/TTS managers)
+// Created: 21.sep.2025 15:35
+// ver. 1.0
+
+
 package lv.mariozo.homeogo.ui.viewmodel
 
 import android.app.Application

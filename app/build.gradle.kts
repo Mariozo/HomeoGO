@@ -1,3 +1,10 @@
+
+// File: app/build.gradle.kts
+// Module: HomeoGO
+// Purpose: Gradle build script for Android app module (dependencies, build config, BuildConfig fields)
+// Created: 20.sep.2025 17:35
+// ver. 1.0
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)

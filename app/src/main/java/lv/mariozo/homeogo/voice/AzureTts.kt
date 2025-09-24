@@ -3,7 +3,7 @@
 // File: app/src/main/java/lv/mariozo/homeogo/voice/AzureTts.kt
 // Module: HomeoGO
 // Purpose: Wrapper for Azure Cognitive Services TTS (blocking call)
-// Created: 20.sep.2025 14:25
+// Created: 20.sep.2025 15:35
 // ver. 1.0
 
 package lv.mariozo.homeogo.voice
@@ -38,7 +38,10 @@ class AzureTts(context: Context) : AutoCloseable {
     fun speakBlocking(text: String) {
         if (text.isBlank()) return
         try {
-            Toast.makeText(ctx, "Azure TTS: start…", Toast.LENGTH_SHORT).show()
+            Toast.makeText(ctx,
+                "Azure voice: ${speechConfig.speechSynthesisVoiceName}",
+                Toast.LENGTH_LONG).show()
+
             val result: SpeechSynthesisResult = synthesizer.SpeakText(text)
 
             when (result.reason) {

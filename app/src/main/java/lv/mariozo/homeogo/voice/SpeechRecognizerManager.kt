@@ -1,6 +1,7 @@
+
 // File: java/lv/mariozo/homeogo/speech/SpeechRecognizerManager.kt
 // Module: HomeoGO
-// Purpose: Android SpeechRecognizer wrapper exposing StateFlow<SttState>.
+// Purpose: Manager for Android SpeechRecognizer, exposes STT state as StateFlow
 // Created: 16.sep.2025 22:15
 // ver. 1.20 (Refactored to use SttState)
 // Requires: android.permission.RECORD_AUDIO (AndroidManifest.xml)
