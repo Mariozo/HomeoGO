@@ -55,10 +55,13 @@ import lv.mariozo.homeogo.voice.TTSManager
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
+// Removed duplicate LaunchedEffect and remember imports
 import lv.mariozo.homeogo.voice.AzureTts
-
+import lv.mariozo.homeogo.voice.TtsRouter
+import lv.mariozo.homeogo.voice.SystemTtsEngine
+import lv.mariozo.homeogo.voice.AzureTtsEngine
+import lv.mariozo.homeogo.voice.TtsChoice
+import lv.mariozo.homeogo.BuildConfig
 
 // # 2. ------- Modeļi ------------------------------------------------------------
 enum class TtsChoice { System, Elza }
@@ -68,7 +71,7 @@ data class ElzaSettings(
     val ttsChoice: TtsChoice = TtsChoice.Elza,
     val themeChoice: ThemeChoice = ThemeChoice.System,
     val speakingRate: Float = 1.0f,   // 0.5..1.5 (pagaidām neizmantojam)
-    val speakingPitch: Float = 0.0f   // semitoni (pagaidām neizmantojam)
+    val speakingPitch: Float = 0.0f,   // semitoni (pagaidām neizmantojam)
 )
 
 sealed interface ElzaUiState {
@@ -87,31 +90,41 @@ sealed interface ElzaUiState {
 fun ElzaScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val activity = context as? Activity
+    val ctx = LocalContext.current // Moved from top-level
+    var azureStatus by remember { mutableStateOf("—") } // Moved from top-level
 
     // STT manager
     val tts = androidx.compose.runtime.remember(context) { TTSManager(context) }    // System TTS
-    val srm = androidx.compose.runtime.remember(activity) { activity?.let { SpeechRecognizerManager(it) } }
-    val azureTts = remember(context) { AzureTts(context) }      // Azure TTS
-
+    val srm =
+        androidx.compose.runtime.remember(activity) { activity?.let { SpeechRecognizerManager(it) } }
+    val azureTts: AzureTts = AzureTts      // Corrected: Use AzureTts object directly
+    val router = remember(tts, azureTts, ctx) { // Added ctx to remember dependencies
+        TtsRouter(
+            system = SystemTtsEngine(tts),
+            elza = AzureTtsEngine(azureTts, ctx, BuildConfig.AZURE_SPEECH_KEY, BuildConfig.AZURE_SPEECH_REGION)
+        )
+    }
+    var settings by rememberSaveable(stateSaver = settingsSaver()) { mutableStateOf(ElzaSettings()) }
     // StateFlow → Compose state (bez lifecycle extension)
     val sttState by (srm?.state?.collectAsState(initial = SpeechRecognizerManager.SttState.Idle)
         ?: androidx.compose.runtime.remember { mutableStateOf(SpeechRecognizerManager.SttState.Idle) })
 
     val uiState = when (sttState) {
-        is SpeechRecognizerManager.SttState.Idle      -> ElzaUiState.Idle
+        is SpeechRecognizerManager.SttState.Idle -> ElzaUiState.Idle
         is SpeechRecognizerManager.SttState.Listening -> ElzaUiState.Listening
-        is SpeechRecognizerManager.SttState.Partial   -> ElzaUiState.Partial((sttState as SpeechRecognizerManager.SttState.Partial).text)
-        is SpeechRecognizerManager.SttState.Final     -> ElzaUiState.Final((sttState as SpeechRecognizerManager.SttState.Final).text)
-        is SpeechRecognizerManager.SttState.Error     -> ElzaUiState.Error((sttState as SpeechRecognizerManager.SttState.Error).message)
-        else -> ElzaUiState.Idle
+        is SpeechRecognizerManager.SttState.Partial -> ElzaUiState.Partial((sttState as SpeechRecognizerManager.SttState.Partial).text)
+        is SpeechRecognizerManager.SttState.Final -> ElzaUiState.Final((sttState as SpeechRecognizerManager.SttState.Final).text)
+        is SpeechRecognizerManager.SttState.Error -> ElzaUiState.Error((sttState as SpeechRecognizerManager.SttState.Error).message)
+        // else -> ElzaUiState.Idle // Removed redundant else
     }
 
-    LaunchedEffect(uiState) {
+    LaunchedEffect(uiState, settings.ttsChoice) {
         if (uiState is ElzaUiState.Final) {
             val text = uiState.text.ifBlank { "Sapratu." }
-            tts.speak(text)
+            router.speak(settings.ttsChoice, text)
         }
     }
+
     // Mikrofona atļauja
     var hasPermission by rememberSaveable { mutableStateOf(false) }
     val requestPermission = rememberLauncherForActivityResult(
@@ -130,12 +143,7 @@ fun ElzaScreen(modifier: Modifier = Modifier) {
     // Stop klausīšanos, kad ekrāns pazūd
     DisposableEffect(srm) { onDispose { srm?.stopListening() } }
 
-    // TTS (šobrīd izmantojam tikai speak)
-    //val tts = androidx.compose.runtime.remember(context) { TTSManager(context) }
-    // Ja tavā TTSManager ir shutdown()/release(), paziņo man — pielikšu atpakaļ.
-
     var showSettings by rememberSaveable { mutableStateOf(false) }
-    var settings by rememberSaveable(stateSaver = settingsSaver()) { mutableStateOf(ElzaSettings()) }
 
     Scaffold(
         topBar = {
@@ -194,13 +202,49 @@ fun ElzaScreen(modifier: Modifier = Modifier) {
 
                 Button(
                     onClick = {
-                        Toast.makeText(context, "TEST → Azure (Everita)", Toast.LENGTH_SHORT).show()
-                        azureTts.speakBlocking("Sveiki! Šis ir Elzas balss tests.")
+                        val line = "Šis teikums jānolasa Everitai."
+                        router.speak(settings.ttsChoice, line)
                     },
                     enabled = !speaking,
                     shape = RoundedCornerShape(24.dp)
                 ) {
                     Text("▶️ Pārbaudi balsi")
+                }
+            }
+
+            // Azure Direct Test UI Block
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Statusa rindiņa
+                Text(
+                    text = "Azure TTS: $azureStatus",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                // Poga "Pārbaudi balsi"
+                Button(
+                    onClick = {
+                        AzureTts.speak(
+                            context = ctx,
+                            text = "Sveiki! Te runā Everita.",
+                            key = BuildConfig.AZURE_SPEECH_KEY,
+                            region = BuildConfig.AZURE_SPEECH_REGION
+                        ) { msg: String ->
+                            azureStatus = msg
+                        }
+                    },
+                    modifier = Modifier.padding(top = 8.dp),
+                    shape = RoundedCornerShape(24.dp)
+                ) {
+                    Text("Pārbaudi Azure tieši")
                 }
             }
         }
@@ -212,7 +256,11 @@ fun ElzaScreen(modifier: Modifier = Modifier) {
             onDismiss = { showSettings = false },
             onApply = {
                 settings = it
-                Toast.makeText(context, "Iestatījumi saglabāti: ${it.themeChoice}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    "Iestatījumi saglabāti: ${it.themeChoice}",
+                    Toast.LENGTH_SHORT
+                ).show()
                 showSettings = false
             }
         )
@@ -257,7 +305,7 @@ private fun StatusBlock(uiState: ElzaUiState) {
 private fun SettingsDialog(
     initial: ElzaSettings,
     onDismiss: () -> Unit,
-    onApply: (ElzaSettings) -> Unit
+    onApply: (ElzaSettings) -> Unit,
 ) {
     var ttsChoice by rememberSaveable { mutableStateOf(initial.ttsChoice) }
     var themeChoice by rememberSaveable { mutableStateOf(initial.themeChoice) }
@@ -277,11 +325,15 @@ private fun SettingsDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Balss dzinējs", style = MaterialTheme.typography.labelLarge)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = ttsChoice == TtsChoice.Elza, onClick = { ttsChoice = TtsChoice.Elza })
+                    RadioButton(
+                        selected = ttsChoice == TtsChoice.Elza,
+                        onClick = { ttsChoice = TtsChoice.Elza })
                     Spacer(Modifier.width(6.dp)); Text("Elza (tīkla TTS)")
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = ttsChoice == TtsChoice.System, onClick = { ttsChoice = TtsChoice.System })
+                    RadioButton(
+                        selected = ttsChoice == TtsChoice.System,
+                        onClick = { ttsChoice = TtsChoice.System })
                     Spacer(Modifier.width(6.dp)); Text("Sistēmas TTS")
                 }
 
@@ -289,28 +341,44 @@ private fun SettingsDialog(
 
                 Text("Tēmas režīms", style = MaterialTheme.typography.labelLarge)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = themeChoice == ThemeChoice.System, onClick = { themeChoice = ThemeChoice.System })
+                    RadioButton(
+                        selected = themeChoice == ThemeChoice.System,
+                        onClick = { themeChoice = ThemeChoice.System })
                     Spacer(Modifier.width(6.dp)); Text("Sistēmas")
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = themeChoice == ThemeChoice.Light, onClick = { themeChoice = ThemeChoice.Light })
+                    RadioButton(
+                        selected = themeChoice == ThemeChoice.Light,
+                        onClick = { themeChoice = ThemeChoice.Light })
                     Spacer(Modifier.width(6.dp)); Text("Gaišā")
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = themeChoice == ThemeChoice.Dark, onClick = { themeChoice = ThemeChoice.Dark })
+                    RadioButton(
+                        selected = themeChoice == ThemeChoice.Dark, // Corrected TtsChoice.Dark to ThemeChoice.Dark
+                        onClick = { themeChoice = ThemeChoice.Dark })
                     Spacer(Modifier.width(6.dp)); Text("Tumšā")
                 }
 
                 Spacer(Modifier.height(8.dp))
 
                 Text("Balss ātrums", style = MaterialTheme.typography.labelLarge)
-                Slider(value = rate, onValueChange = { rate = it }, valueRange = 0.5f..1.5f, steps = 8)
+                Slider(
+                    value = rate,
+                    onValueChange = { rate = it },
+                    valueRange = 0.5f..1.5f,
+                    steps = 8
+                )
                 Text(String.format("x %.2f", rate), style = MaterialTheme.typography.bodySmall)
 
                 Spacer(Modifier.height(4.dp))
 
                 Text("Balss tonis (semitoni)", style = MaterialTheme.typography.labelLarge)
-                Slider(value = pitch, onValueChange = { pitch = it }, valueRange = -6f..6f, steps = 11)
+                Slider(
+                    value = pitch,
+                    onValueChange = { pitch = it },
+                    valueRange = -6f..6f,
+                    steps = 11
+                )
                 Text(String.format("%+.1f st", pitch), style = MaterialTheme.typography.bodySmall)
             }
         }
@@ -333,7 +401,7 @@ private fun settingsSaver(): Saver<ElzaSettings, Any> = Saver(
 
 // # 7. ------- Previews ----------------------------------------------------------
 @Preview(name = "Elza — Light", showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_NO)
-@Preview(name = "Elza — Dark",  showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Elza — Dark", showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun ElzaPreview() {
     Surface { ElzaScreen() }

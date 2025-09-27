@@ -1,0 +1,486 @@
+{
+  "name": "homeogo-mcp",
+  "version": "1.0",
+  "description": "HomeoGO MCP serveris: katalogs + TTS rīki (MVP).",
+  "servers": [
+    {
+      "id": "prod",
+      "baseUrl": "https://api.homeogo.example/v1"
+    },
+    {
+      "id": "local",
+      "baseUrl": "http://127.0.0.1:8080/v1"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "header": "Authorization",
+    "prefix": "Bearer "
+  },
+  "errorFormat": {
+    "schema": {
+      "type": "object",
+      "required": [
+        "ok",
+        "error",
+        "code"
+      ],
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "const": false
+        },
+        "error": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "details": {
+          "type": "object"
+        }
+      }
+    },
+    "example": {
+      "ok": false,
+      "error": "VOICE_NOT_FOUND",
+      "code": "404",
+      "details": {
+        "voice": "lv-LV-NonExisting"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "tts.health",
+      "method": "GET",
+      "path": "/tts/health",
+      "inputSchema": {
+        "type": "null"
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "provider",
+          "region",
+          "quota"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "azure"
+            ]
+          },
+          "region": {
+            "type": "string"
+          },
+          "quota": {
+            "type": "object",
+            "properties": {
+              "limit": {
+                "type": "number"
+              },
+              "used": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "examples": [
+        {
+          "request": {},
+          "response": {
+            "ok": true,
+            "provider": "azure",
+            "region": "northeurope",
+            "quota": {
+              "limit": 1000000,
+              "used": 12450
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "tts.voices",
+      "method": "GET",
+      "path": "/tts/voices",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "locale": {
+            "type": "string",
+            "default": "lv-LV"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "voices"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "voices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "locale"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "locale": {
+                  "type": "string"
+                },
+                "styles": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "gender": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "examples": [
+        {
+          "request": {
+            "locale": "lv-LV"
+          },
+          "response": {
+            "ok": true,
+            "voices": [
+              {
+                "name": "lv-LV-EveritaNeural",
+                "locale": "lv-LV",
+                "styles": [
+                  "calm",
+                  "chat"
+                ],
+                "gender": "Female"
+              },
+              {
+                "name": "lv-LV-NilsNeural",
+                "locale": "lv-LV",
+                "styles": [
+                  "narration",
+                  "assistant"
+                ],
+                "gender": "Male"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "tts.synthesize",
+      "method": "POST",
+      "path": "/tts/synthesize",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "text",
+          "voice"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "voice": {
+            "type": "string"
+          },
+          "style": {
+            "type": "string",
+            "default": "calm"
+          },
+          "rate": {
+            "type": "string",
+            "default": "0%"
+          },
+          "pitch": {
+            "type": "string",
+            "default": "0st"
+          },
+          "format": {
+            "type": "string",
+            "default": "audio-24khz-48kbitrate-mono-mp3"
+          },
+          "fileName": {
+            "type": "string"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "audioUrl"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "audioUrl": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "number"
+          },
+          "costEstimate": {
+            "type": "number"
+          }
+        }
+      },
+      "examples": [
+        {
+          "request": {
+            "text": "Sveiki! Šis ir HomeoGO TTS tests.",
+            "voice": "lv-LV-EveritaNeural",
+            "style": "calm",
+            "rate": "0%",
+            "pitch": "0st",
+            "format": "audio-24khz-48kbitrate-mono-mp3",
+            "fileName": "welcome_v1.mp3"
+          },
+          "response": {
+            "ok": true,
+            "audioUrl": "https://files.homeogo.example/tts/welcome_v1.mp3",
+            "durationMs": 3120,
+            "costEstimate": 0.0005
+          }
+        }
+      ]
+    },
+    {
+      "name": "catalog.search",
+      "method": "GET",
+      "path": "/products/search",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "q"
+        ],
+        "properties": {
+          "q": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer",
+            "default": 10,
+            "minimum": 1,
+            "maximum": 50
+          },
+          "offset": {
+            "type": "integer",
+            "default": 0,
+            "minimum": 0
+          },
+          "age": {
+            "type": "string",
+            "enum": [
+              "all",
+              "adult",
+              "child"
+            ],
+            "default": "all"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "items",
+          "total"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "name",
+                "price",
+                "ageRange",
+                "tags"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "price": {
+                  "type": "number"
+                },
+                "ageRange": {
+                  "type": "string"
+                },
+                "tags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "examples": [
+        {
+          "request": {
+            "q": "klepus sīrups",
+            "limit": 5,
+            "age": "adult"
+          },
+          "response": {
+            "ok": true,
+            "total": 17,
+            "items": [
+              {
+                "id": "sku-123",
+                "name": "HomeoCough Syrup",
+                "price": 5.99,
+                "ageRange": "7+",
+                "tags": [
+                  "syrup",
+                  "herbal",
+                  "night"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "catalog.get",
+      "method": "GET",
+      "path": "/products/{id}",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "product"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "product": {
+            "type": "object",
+            "required": [
+              "id",
+              "name",
+              "whenToUse",
+              "howToUse",
+              "notes",
+              "ageRange",
+              "price",
+              "tags"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "whenToUse": {
+                "type": "string"
+              },
+              "howToUse": {
+                "type": "string"
+              },
+              "notes": {
+                "type": "string"
+              },
+              "ageRange": {
+                "type": "string"
+              },
+              "price": {
+                "type": "number"
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "examples": [
+        {
+          "request": {
+            "id": "sku-123"
+          },
+          "response": {
+            "ok": true,
+            "product": {
+              "id": "sku-123",
+              "name": "HomeoCough Syrup",
+              "whenToUse": "Sauss klepus naktī",
+              "howToUse": "5 ml 2–3x dienā pēc ēšanas",
+              "notes": "Grūtniecības gadījumā jautāt farmaceitam",
+              "ageRange": "7+",
+              "price": 5.99,
+              "tags": [
+                "syrup",
+                "herbal",
+                "night"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
