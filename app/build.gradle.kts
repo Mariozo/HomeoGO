@@ -3,6 +3,9 @@
 // Purpose: Gradle build script for Android app module (dependencies, build config, BuildConfig fields)
 // Created: 20.sep.2025 17:35
 // ver. 1.0
+// ↑ faila augšā (ārpus android { ... })
+
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -11,8 +14,15 @@ plugins {
 }
 
 android {
+
+    // obligāti!
     namespace = "lv.mariozo.homeogo"
     compileSdk = 36
+
+    buildFeatures {
+        buildConfig = true
+        compose = true
+    }
 
     defaultConfig {
         applicationId = "lv.mariozo.homeogo"
@@ -21,32 +31,31 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        // ✅ ABI filteri – tie paliek iekš ndk
-        ndk {
-            abiFilters += setOf("arm64-v8a", "armeabi-v7a", "x86_64")
-        }
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        vectorDrawables { useSupportLibrary = true }
 
-        // ✅ BuildConfig lauki – ārpus ndk!
-        val azureKey = providers.gradleProperty("AZURE_SPEECH_KEY").orElse("").get()
-        val azureRegion =
-            providers.gradleProperty("AZURE_SPEECH_REGION").orElse("northeurope").get()
+        // ❶ Gradle project/user properties (~/.gradle/gradle.properties vai projekta gradle.properties)
+        val pKey = providers.gradleProperty("AZURE_SPEECH_KEY")
+        val pRegion = providers.gradleProperty("AZURE_SPEECH_REGION")
+
+        // ❷ Environment variables (OS līmenī)
+        val eKey = providers.environmentVariable("AZURE_SPEECH_KEY")
+        val eRegion = providers.environmentVariable("AZURE_SPEECH_REGION")
+
+        // ❸ local.properties (projekta saknē; parasti Git ignorē)
+        val localProps = Properties().apply {
+            val f = File(rootDir, "local.properties")
+            if (f.exists()) f.inputStream().use { load(it) }
+        }
+        val lKey = localProps.getProperty("AZURE_SPEECH_KEY") ?: ""
+        val lRegion = localProps.getProperty("AZURE_SPEECH_REGION") ?: ""
+
+        // prioritāte: gradle.properties → ENV → local.properties → ""
+        val azureKey = pKey.orElse(eKey).orElse(lKey).orElse("").get()
+        val azureRegion = pRegion.orElse(eRegion).orElse(lRegion).orElse("northeurope").get()
 
         buildConfigField("String", "AZURE_SPEECH_KEY", "\"$azureKey\"")
         buildConfigField("String", "AZURE_SPEECH_REGION", "\"$azureRegion\"")
-    }
-
-    buildTypes {
-        release {
-            isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-            buildFeatures {
-                buildConfig = true   // ← obligāti ieslēdzam
-                compose = true
-            }
-        }
 
         compileOptions {
             sourceCompatibility = JavaVersion.VERSION_17
@@ -56,20 +65,7 @@ android {
         kotlinOptions {
             jvmTarget = "17"
         }
-
-        buildFeatures {
-            compose = true
-        }
-
-        composeOptions {
-            kotlinCompilerExtensionVersion = "1.5.14"
-        }
-
-        packaging {
-            resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}")
-        }
     }
-
 
     dependencies {
 

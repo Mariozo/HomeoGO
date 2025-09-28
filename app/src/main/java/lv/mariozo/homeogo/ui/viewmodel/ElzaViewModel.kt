@@ -13,13 +13,11 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import lv.mariozo.homeogo.speech.SpeechRecognizerManager
-import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.launch
 import lv.mariozo.homeogo.BuildConfig
+import lv.mariozo.homeogo.speech.SpeechRecognizerManager
 import lv.mariozo.homeogo.voice.TtsRouter
-import lv.mariozo.homeogo.voice.tts.system.SystemTtsEngine
 import lv.mariozo.homeogo.voice.tts.azure.AzureTtsEngine
+import lv.mariozo.homeogo.voice.tts.system.SystemTtsEngine
 
 
 data class ElzaUiState(
@@ -108,7 +106,9 @@ class ElzaViewModel(app: Application) : AndroidViewModel(app) {
 
     fun speak(text: String) {
         if (text.isNotBlank()) {
-            tts.speak(text)
+            viewModelScope.launch {
+                ttsRouter.speak("...")
+            }
             _uiState.value = _uiState.value.copy(status = "Speaking...")
         } else {
             _uiState.value = _uiState.value.copy(status = "Nothing to speak")
@@ -122,7 +122,9 @@ class ElzaViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         super.onCleared()
-        tts.release()
+        viewModelScope.launch {
+            ttsRouter.speak("...")
+        }
         srm.destroyRecognizer()
     }
 }

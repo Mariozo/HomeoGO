@@ -23,7 +23,7 @@ import java.util.Locale
  */
 class TTSManager(
     context: Context,
-    preferredEnginePackage: String? = "com.google.android.tts" // try Google TTS first
+    preferredEnginePackage: String? = "com.google.android.tts", // try Google TTS first
 ) {
 
     private var tts: TextToSpeech? = null
@@ -47,7 +47,10 @@ class TTSManager(
                 TextToSpeech(context, listener)
             }
         } catch (e: Throwable) {
-            Log.w("TTSManager", "Preferred engine not available, falling back to default: ${e.message}")
+            Log.w(
+                "TTSManager",
+                "Preferred engine not available, falling back to default: ${e.message}"
+            )
             TextToSpeech(context, listener)
         }
     }
@@ -55,7 +58,10 @@ class TTSManager(
     // # 3.  ------ Voice/Language selection -----------------------------------
     private fun configureLatvianVoice() {
         val engine = tts ?: return
-        val lv = Locale("lv", "LV") // For older Android, Locale.forLanguageTag("lv-LV") is better if API >= 21
+        val lv = Locale(
+            "lv",
+            "LV"
+        ) // For older Android, Locale.forLanguageTag("lv-LV") is better if API >= 21
 
         // Try to pick a concrete Latvian Voice first (more reliable than setLanguage on some engines)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -67,7 +73,7 @@ class TTSManager(
                     .sortedWith(
                         compareByDescending<Voice> {
                             // Prioritize female voices by checking for the "female" feature string directly
-                            it.features.contains("female") 
+                            it.features.contains("female")
                         }.thenByDescending {
                             // Then prioritize Google voices
                             it.name.contains("google", ignoreCase = true)
@@ -82,9 +88,12 @@ class TTSManager(
 
                 for (v in lvVoices) {
                     // Explicitly type v if inference fails, though it should be Voice
-                    val res = engine.setVoice(v as? Voice ?: continue) 
+                    val res = engine.setVoice(v as? Voice ?: continue)
                     if (res == TextToSpeech.SUCCESS) {
-                        Log.i("TTSManager", "Using LV voice: ${v.name} (${v.locale}, features: ${v.features})")
+                        Log.i(
+                            "TTSManager",
+                            "Using LV voice: ${v.name} (${v.locale}, features: ${v.features})"
+                        )
                         // Optional: normalize rate/pitch if needed
                         engine.setSpeechRate(1.0f)
                         engine.setPitch(1.0f)
@@ -97,7 +106,10 @@ class TTSManager(
         // If no specific LV voice chosen, fallback to language setting
         val langRes = engine.setLanguage(lv)
         if (langRes == TextToSpeech.LANG_MISSING_DATA || langRes == TextToSpeech.LANG_NOT_SUPPORTED) {
-            Log.w("TTSManager", "Latvian language missing/not supported; falling back to device default")
+            Log.w(
+                "TTSManager",
+                "Latvian language missing/not supported; falling back to device default"
+            )
             engine.language = Locale.getDefault()
         } else {
             engine.setSpeechRate(1.0f)
