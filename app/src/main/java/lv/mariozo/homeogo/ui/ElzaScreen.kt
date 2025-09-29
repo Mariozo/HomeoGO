@@ -1,3 +1,5 @@
+//
+// ============================================================================
 // File: app/src/main/java/lv/mariozo/homeogo/ui/ElzaScreen.kt
 // Module: HomeoGO
 // Purpose: Pilnais Elzas UI (20.09) + jaunā TTS arhitektūra (Everita/Azure)
@@ -5,19 +7,6 @@
 // ver. 2.0
 // Purpose: Elsa UI with settings gear, voice selection (Azure/System),
 //          speech rate slider and status area. Works with TtsRouter.
-// Notes:
-//   - UI: zobrats (iestatījumi), balss dzinēja izvēle (Elza/System),
-//          runas ātruma slīdnis, tēmas izvēle, mic/stop + “Pārbaudi balsi”.
-//   - TTS: TtsRouter + SystemTtsEngine + AzureTtsEngine (BuildConfig atslēgas).
-//   - Runas ātrums pagaidām UI līmenī; Azure piesaiste ar SSML – nākamais solis.
-//   - Pilnais Elzas UI (20.09) + TtsRouter (Azure/System) + STT Mic/Stop
-//          + TTS runas ātrums (SSML ar <prosody rate="…">, kad Azure + rate≠1).
-// ============================================================================
-
-// ============================================================================
-// File: app/src/main/java/lv/mariozo/homeogo/ui/ElzaScreen.kt
-// Purpose: Elzas pilnais UI (20.09 struktūra) + TtsRouter (Azure/System)
-//          + Mic/Stop ar Azure STT (lokāls serviss) + iestatījumu dialogs.
 // Notes:
 //   - TTS: Azure parametri no BuildConfig.AZURE_SPEECH_KEY/REGION.
 //   - STT: vajag RECORD_AUDIO atļauju (Manifest + runtime).
@@ -62,7 +51,7 @@ import com.microsoft.cognitiveservices.speech.SpeechConfig
 import com.microsoft.cognitiveservices.speech.SpeechRecognizer
 import com.microsoft.cognitiveservices.speech.audio.AudioConfig
 
-// --------------------------- Modeļi & Saver ---------------------------------
+// #2 ---- Modeļi & Saver ---------------------------------
 
 enum class TtsChoice { Elza, System }
 enum class ThemeChoice { System, Light, Dark }
@@ -86,7 +75,7 @@ fun settingsSaver() = listSaver<ElzaSettings, Any>(
     }
 )
 
-// --------------------------- Iestatījumu dialogs ----------------------------
+// #3 ---- Settings dialogue ----------------------------
 
 @Composable
 fun SettingsDialog(
@@ -198,7 +187,7 @@ fun SettingsDialog(
     )
 }
 
-// ----------------------- Lokāls Azure STT serviss ---------------------------
+// #4 ---- Local Azure STT service ---------------------------
 
 private class LocalAzureSttService(
     context: Context,
@@ -245,7 +234,7 @@ private class LocalAzureSttService(
     }
 }
 
-// ---------------------- Noderīgs helpers Activity ---------------------------
+// #5 ---- Useful helpers Activity ---------------------------
 
 private fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
