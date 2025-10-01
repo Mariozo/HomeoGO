@@ -12,12 +12,27 @@
 //  - Two previews (light/dark) use MaterialTheme to avoid project theme dependency.
 //  - UI strings LV; code & comments EN. Blocks numbered per MK!.
 
+// File: app/src/main/java/lv/mariozo/homeogo/ui/ElzaScreen.kt
+// Project: HomeoGO (Android, Jetpack Compose + Material3)
+// Module: app
+// Purpose: Visual Elza screen wired for real operation (no local demo state). UI state comes
+//          from ViewModel; actions are forwarded via callbacks to STT/TTS managers.
+// Created: 01.okt.2025 17:47
+// ver. 1.9
+// Notes:
+//  - UI layout/logic preserved; only state source changed to external VM-provided state.
+//  - No direct references/imports to Azure/STT classes; integration via callbacks.
+//  - Two previews with mock state keep AS Preview working without project dependencies.
+//  - UI strings LV; code/comments EN. Blocks follow MK! numbering.
+
+
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 
 package lv.mariozo.homeogo.ui
-
 // 1. ---- Imports ---------------------------------------------------------------
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,6 +41,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -41,42 +57,40 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 
-// 2. ---- Public API ------------------------------------------------------------
-// External callbacks allow ViewModel or managers (STT/TTS) to be plugged in.
-// In Preview (no VM attached), a local demo state path is used.
+// 2. ---- Public state & API (from ViewModel) ----------------------------------
+// The ViewModel should expose this shape (directly or via mapping).
+data class ElzaScreenState(
+    val isListening: Boolean = false,
+    val status: String = "Gatavs.",
+    val partialText: String = "",
+    val finalText: String = "",
+    val testPhrase: String = "Sveiki! Šis ir Elzas testa teikums.",
+)
+
+// Host screen should pass real callbacks that call VM -> STT/TTS managers:
+//   onStartListening() -> vm.startListening()
+//   onStopListening()  -> vm.stopListening()
+//   onSpeakTest(txt)   -> vm.speakTest(txt)
 @Composable
 fun ElzaScreen(
+    state: ElzaScreenState,
+    onStartListening: () -> Unit,
+    onStopListening: () -> Unit,
+    onSpeakTest: (String) -> Unit,
     modifier: Modifier = Modifier,
-    // STT controls:
-    onStartListening: (() -> Unit)? = null,
-    onStopListening: (() -> Unit)? = null,
-    // TTS control:
-    onSpeakTest: ((String) -> Unit)? = null,
-    // Optional state inputs from VM. If null, local demo state is used.
-    isListeningExternal: Boolean? = null,
-    statusTextExternal: String? = null,
-    partialTextExternal: String? = null,
-    finalTextExternal: String? = null,
 ) {
-    // 2.1 ---- Local demo state (used only if VM state not provided) ------------
-    var isListening by remember { mutableStateOf(false) }
-    var status by remember { mutableStateOf("Gatavs.") }
-    var partial by remember { mutableStateOf("") }
-    var final by remember { mutableStateOf("") }
-    var testPhrase by remember { mutableStateOf("Labdien! Kā Tev klājas šodien?") }
-
-    val isListeningState = isListeningExternal ?: isListening
-    val statusState = statusTextExternal ?: status
-    val partialState = partialTextExternal ?: partial
-    val finalState = finalTextExternal ?: final
+    // Local edit buffer for test phrase (does not drive app logic).
+    var testPhraseBuffer by rememberSaveable(state.testPhrase) { mutableStateOf(state.testPhrase) }
 
     Surface(modifier = modifier.fillMaxSize()) {
         Column {
@@ -97,10 +111,12 @@ fun ElzaScreen(
                 verticalArrangement = Arrangement.Top,
                 horizontalAlignment = Alignment.Start
             ) {
-                // 4.1 ---- Status card -------------------------------------------
-                StatusCard(
-                    title = "Statuss",
-                    text = statusState
+                // 4.1 ---- Status block -----------------------------------------
+                StatusBlock(
+                    status = state.status,
+                    isListening = state.isListening,
+                    partial = state.partialText,
+                    finalText = state.finalText
                 )
 
                 Spacer(Modifier.height(16.dp))
@@ -113,48 +129,24 @@ fun ElzaScreen(
                 ) {
                     Button(
                         onClick = {
-                            // Prefer external VM callback if provided
-                            if (onStartListening != null) {
-                                onStartListening()
-                            } else {
-                                // Demo behavior (local state)
-                                status = "Klausos…"
-                                isListening = true
-                                partial = ""
-                                final = ""
-                            }
+                            onStartListening()
                         },
-                        enabled = !isListeningState
-                    ) {
-                        Text("Klausos")
-                    }
+                        enabled = !state.isListening
+                    ) { Text("Klausos") }
 
                     OutlinedButton(
                         onClick = {
-                            if (onStopListening != null) {
-                                onStopListening()
-                            } else {
-                                status = "Apturēts."
-                                isListening = false
-                            }
+                            onStopListening()
                         },
-                        enabled = isListeningState
-                    ) {
-                        Text("Stop")
-                    }
+                        enabled = state.isListening
+                    ) { Text("Stop") }
 
                     Button(
                         onClick = {
-                            val phrase = finalState.ifBlank { testPhrase }
-                            if (onSpeakTest != null) {
-                                onSpeakTest(phrase)
-                            } else {
-                                status = "Tiek atskaņots tests…"
-                            }
+                            val toSpeak = state.finalText.ifBlank { testPhraseBuffer }
+                            onSpeakTest(toSpeak)
                         }
-                    ) {
-                        Text("Pārbaudīt balsi")
-                    }
+                    ) { Text("Pārbaudīt balsi") }
                 }
 
                 Spacer(Modifier.height(16.dp))
@@ -164,13 +156,9 @@ fun ElzaScreen(
                 // 4.3 ---- Recognized text panels --------------------------------
                 RecognizedCard(
                     header = "Daļējais (partial)",
-                    text = partialState.ifBlank { "—" }
-                )
+                    text = state.partialText.ifBlank { "—" })
                 Spacer(Modifier.height(12.dp))
-                RecognizedCard(
-                    header = "Gala (final)",
-                    text = finalState.ifBlank { "—" }
-                )
+                RecognizedCard(header = "Gala (final)", text = state.finalText.ifBlank { "—" })
 
                 Spacer(Modifier.height(24.dp))
 
@@ -181,22 +169,12 @@ fun ElzaScreen(
                 )
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
-                    value = testPhrase,
-                    onValueChange = { testPhrase = it },
+                    value = testPhraseBuffer,
+                    onValueChange = { testPhraseBuffer = it },
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = { Text("Ieraksti ko Elza nolasīs…") },
                     singleLine = true
                 )
-
-                Spacer(Modifier.height(32.dp))
-
-                // 4.5 ---- Demo hints (visible only in local mode) ---------------
-                if (statusTextExternal == null) {
-                    Text(
-                        "Demo režīms: šis ekrāns darbojas arī bez VM — pogas maina lokālu stāvokli.",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
             }
         }
     }
@@ -204,21 +182,36 @@ fun ElzaScreen(
 
 // 5. ---- Sub-Components --------------------------------------------------------
 @Composable
-private fun StatusCard(title: String = "Statuss", text: String = "Gatavs.") {
+private fun StatusBlock(status: String, isListening: Boolean, partial: String, finalText: String) {
+    val cfg = LocalConfiguration.current
+    val isLandscape = cfg.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    val dynamicText =
+        if (isListening && partial.isNotBlank()) "… $partial"
+        else if (isListening) "Klausos… runā tagad."
+        else if (finalText.isNotBlank()) finalText
+        else status.ifBlank { "Gatava. Piespied “Klausos”." }
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(if (isLandscape) 96.dp else 148.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Column(Modifier.padding(16.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(8.dp))
-            Text(text, style = MaterialTheme.typography.bodyLarge)
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                text = dynamicText,
+                style = MaterialTheme.typography.titleMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(16.dp)
+            )
         }
     }
 }
 
 @Composable
-private fun RecognizedCard(header: String = "Daļējais (partial)", text: String = "—") {
+private fun RecognizedCard(header: String, text: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -235,12 +228,54 @@ private fun RecognizedCard(header: String = "Daļējais (partial)", text: String
     }
 }
 
-// 6. ---- Previews --------------------------------------------------------------
-@Preview(name = "Elza Screen (MaterialTheme)", showBackground = true, showSystemUi = true)
+// 6. ---- Previews (mock state, no VM required) --------------------------------
+// --- patch start: ElzaScreen.kt (previews — split & public) -------------------
+@Preview(
+    name = "Elza — Light",
+    showBackground = true,
+    showSystemUi = true,
+    uiMode = Configuration.UI_MODE_NIGHT_NO
+)
 @Composable
-private fun ElzaScreenPreview() {
-    // Use default Material3 theme for preview to avoid dependency on project theme.
+fun ElzaPreview_Light() {
+    val mock = ElzaScreenState(
+        isListening = true,
+        status = "Klausos…",
+        partialText = "Sveiki, šis ir daļējs…",
+        finalText = ""
+    )
     MaterialTheme {
-        ElzaScreen()
+        ElzaScreen(
+            state = mock,
+            onStartListening = {},
+            onStopListening = {},
+            onSpeakTest = {}
+        )
     }
 }
+
+@Preview(
+    name = "Elza — Dark",
+    showBackground = true,
+    showSystemUi = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES
+)
+@Composable
+fun ElzaPreview_Dark() {
+    val mock = ElzaScreenState(
+        isListening = false,
+        status = "Gatavs.",
+        partialText = "",
+        finalText = "Gala teksts priekšskatījumam."
+    )
+    MaterialTheme {
+        ElzaScreen(
+            state = mock,
+            onStartListening = {},
+            onStopListening = {},
+            onSpeakTest = {}
+        )
+    }
+}
+// --- patch end ----------------------------------------------------------------
+

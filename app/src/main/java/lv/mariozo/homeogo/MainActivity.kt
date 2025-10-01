@@ -13,20 +13,25 @@ package lv.mariozo.homeogo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.material3.Surface
 import lv.mariozo.homeogo.ui.ElzaScreen
-import lv.mariozo.homeogo.ui.theme.HomeoGOTheme
+import lv.mariozo.homeogo.ui.ElzaScreenState
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+// --- patch start: MainActivity.kt (setContent call site) ----------------------
+// Replace the existing ElzaScreen() call with this block
         setContent {
-            HomeoGOTheme {
-                Surface {
-                    ElzaScreen()
-                }
-            }
+            // Temporary bridge to satisfy new required parameters.
+            // Later you can wire a real ViewModel and pass its state + callbacks.
+            ElzaScreen(
+                state = ElzaScreenState(),
+                onStartListening = { /* TODO: vm.startListening() */ },
+                onStopListening = { /* TODO: vm.stopListening()  */ },
+                onSpeakTest = { /* TODO: vm.speakTest(it)    */ }
+            )
         }
+// --- patch end ----------------------------------------------------------------
     }
 }
