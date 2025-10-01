@@ -16,7 +16,6 @@
 
 package lv.mariozo.homeogo.ui
 
-
 // 1. ---- Imports ---------------------------------------------------------------
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
