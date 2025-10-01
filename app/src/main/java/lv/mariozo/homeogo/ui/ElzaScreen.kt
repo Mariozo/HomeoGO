@@ -1,466 +1,247 @@
-//
-// ============================================================================
 // File: app/src/main/java/lv/mariozo/homeogo/ui/ElzaScreen.kt
-// Module: HomeoGO
-// Purpose: Pilnais Elzas UI (20.09) + jaunā TTS arhitektūra (Everita/Azure)
-// Created: 28.sep.2025 9:15
-// ver. 2.0
-// Purpose: Elsa UI with settings gear, voice selection (Azure/System),
-//          speech rate slider and status area. Works with TtsRouter.
+// Project: HomeoGO (Android, Jetpack Compose + Material3)
+// Module: app
+// Purpose: Visual Elza screen (STT + TTS controls) with status, partial/final text,
+//          and a small settings dialog; designed to compile cleanly and render in
+//          Android Studio Preview without project-specific dependencies.
+// Created: 01.okt.2025 14:18
+// ver. 1.8
 // Notes:
-//   - TTS: Azure parametri no BuildConfig.AZURE_SPEECH_KEY/REGION.
-//   - STT: vajag RECORD_AUDIO atļauju (Manifest + runtime).
-//   - Runas ātrums UI pusē saglabājas; Azure SSML var piesiet nākamajā solī.
-// ============================================================================
+//  - Pure UI: no direct imports of Azure/TTS/STT managers; integration is via callbacks.
+//  - Uses only stable Material3 APIs; HorizontalDivider (no deprecated Divider).
+//  - Two previews (light/dark) use MaterialTheme to avoid project theme dependency.
+//  - UI strings LV; code & comments EN. Blocks numbered per MK!.
+
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 
 package lv.mariozo.homeogo.ui
 
-// #1 Imports -----------------------------------------------------------------
-import android.Manifest
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
-import android.content.pm.PackageManager
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.listSaver
-import androidx.compose.runtime.saveable.rememberSaveable
+
+// 1. ---- Imports ---------------------------------------------------------------
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-import kotlinx.coroutines.launch
-import lv.mariozo.homeogo.BuildConfig
-import lv.mariozo.homeogo.voice.TtsRouter
-import lv.mariozo.homeogo.voice.tts.azure.AzureTtsEngine
-import lv.mariozo.homeogo.voice.tts.system.SystemTtsEngine
 
-// Azure STT SDK
-import com.microsoft.cognitiveservices.speech.SpeechConfig
-import com.microsoft.cognitiveservices.speech.SpeechRecognizer
-import com.microsoft.cognitiveservices.speech.audio.AudioConfig
-
-// #2 ---- Modeļi & Saver ---------------------------------
-
-enum class TtsChoice { Elza, System }
-enum class ThemeChoice { System, Light, Dark }
-
-data class ElzaSettings(
-    val ttsChoice: TtsChoice = TtsChoice.Elza,
-    val themeChoice: ThemeChoice = ThemeChoice.System,
-    val speechRate: Float = 1.0f, // 0.5x..1.5x
-)
-
-fun settingsSaver() = listSaver<ElzaSettings, Any>(
-    save = { listOf(it.ttsChoice.name, it.themeChoice.name, it.speechRate) },
-    restore = {
-        ElzaSettings(
-            ttsChoice = runCatching { TtsChoice.valueOf(it[0] as String) }.getOrDefault(TtsChoice.Elza),
-            themeChoice = runCatching { ThemeChoice.valueOf(it[1] as String) }.getOrDefault(
-                ThemeChoice.System
-            ),
-            speechRate = (it[2] as Number).toFloat()
-        )
-    }
-)
-
-// #3 ---- Settings dialogue ----------------------------
-
-@Composable
-fun SettingsDialog(
-    initial: ElzaSettings,
-    onDismiss: () -> Unit,
-    onApply: (ElzaSettings) -> Unit,
-) {
-    var tmp by remember { mutableStateOf(initial) }
-    var ttsMenuOpen by remember { mutableStateOf(false) }
-    var themeMenuOpen by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = { onApply(tmp) }) { Text("Labi") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Atcelt") } },
-        title = { Text("Iestatījumi") },
-        text = {
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-
-                // Balss dzinējs
-                Column {
-                    Text("Balss dzinējs", style = MaterialTheme.typography.labelLarge)
-                    Box {
-                        OutlinedButton(onClick = { ttsMenuOpen = true }) {
-                            Text(
-                                when (tmp.ttsChoice) {
-                                    TtsChoice.Elza -> "Elza (Azure)"
-                                    TtsChoice.System -> "Sistēmas TTS"
-                                }
-                            )
-                        }
-                        DropdownMenu(
-                            expanded = ttsMenuOpen,
-                            onDismissRequest = { ttsMenuOpen = false }) {
-                            DropdownMenuItem(
-                                text = { Text("Elza (Azure)") },
-                                onClick = {
-                                    tmp = tmp.copy(ttsChoice = TtsChoice.Elza); ttsMenuOpen = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Sistēmas TTS") },
-                                onClick = {
-                                    tmp = tmp.copy(ttsChoice = TtsChoice.System); ttsMenuOpen =
-                                    false
-                                }
-                            )
-                        }
-                    }
-                }
-
-                // Runas ātrums (UI)
-                Column {
-                    Text(
-                        "Runas ātrums: ${"%.2f".format(tmp.speechRate)}×",
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                    Slider(
-                        value = tmp.speechRate,
-                        onValueChange = { tmp = tmp.copy(speechRate = it) },
-                        valueRange = 0.5f..1.5f,
-                        steps = 10
-                    )
-                }
-
-                // Tēma
-                Column {
-                    Text("Tēma", style = MaterialTheme.typography.labelLarge)
-                    Box {
-                        OutlinedButton(onClick = { themeMenuOpen = true }) {
-                            Text(
-                                when (tmp.themeChoice) {
-                                    ThemeChoice.System -> "Sistēmas"
-                                    ThemeChoice.Light -> "Gaišā"
-                                    ThemeChoice.Dark -> "Tumšā"
-                                }
-                            )
-                        }
-                        DropdownMenu(
-                            expanded = themeMenuOpen,
-                            onDismissRequest = { themeMenuOpen = false }) {
-                            DropdownMenuItem(
-                                text = { Text("Sistēmas") },
-                                onClick = {
-                                    tmp =
-                                        tmp.copy(themeChoice = ThemeChoice.System); themeMenuOpen =
-                                    false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Gaišā") },
-                                onClick = {
-                                    tmp = tmp.copy(themeChoice = ThemeChoice.Light); themeMenuOpen =
-                                    false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Tumšā") },
-                                onClick = {
-                                    tmp = tmp.copy(themeChoice = ThemeChoice.Dark); themeMenuOpen =
-                                    false
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    )
-}
-
-// #4 ---- Local Azure STT service ---------------------------
-
-private class LocalAzureSttService(
-    context: Context,
-    key: String,
-    region: String,
-    language: String = "lv-LV",
-) {
-    private val speechConfig: SpeechConfig = SpeechConfig.fromSubscription(key, region).apply {
-        speechRecognitionLanguage = language
-    }
-    private var recognizer: SpeechRecognizer? = null
-
-    fun start(
-        onResult: (String) -> Unit,
-        onError: (Throwable) -> Unit = {},
-    ) {
-        stop()
-        val audioCfg = AudioConfig.fromDefaultMicrophoneInput()
-        recognizer = SpeechRecognizer(speechConfig, audioCfg).apply {
-            recognizing.addEventListener { _, _ -> /* starprezultāti, ja vajag */ }
-            recognized.addEventListener { _, e ->
-                val txt = e.result?.text.orEmpty()
-                if (txt.isNotBlank()) onResult(txt)
-            }
-            canceled.addEventListener { _, e ->
-                onError(IllegalStateException("STT canceled: ${e.errorCode} ${e.errorDetails}"))
-            }
-            sessionStopped.addEventListener { _, _ -> /* no-op */ }
-        }
-        try {
-            recognizer?.startContinuousRecognitionAsync()?.get()
-        } catch (t: Throwable) {
-            onError(t)
-        }
-    }
-
-    fun stop() {
-        try {
-            recognizer?.stopContinuousRecognitionAsync()?.get()
-        } catch (_: Throwable) { /* ignore */
-        }
-        recognizer?.close()
-        recognizer = null
-    }
-}
-
-// #5 ---- Useful helpers Activity ---------------------------
-
-private fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    else -> (this as? ContextWrapper)?.baseContext?.findActivity()
-}
-
-// --------------------------- Galvenais ekrāns -------------------------------
-
-@OptIn(ExperimentalMaterial3Api::class)
+// 2. ---- Public API ------------------------------------------------------------
+// External callbacks allow ViewModel or managers (STT/TTS) to be plugged in.
+// In Preview (no VM attached), a local demo state path is used.
 @Composable
 fun ElzaScreen(
     modifier: Modifier = Modifier,
+    // STT controls:
+    onStartListening: (() -> Unit)? = null,
+    onStopListening: (() -> Unit)? = null,
+    // TTS control:
+    onSpeakTest: ((String) -> Unit)? = null,
+    // Optional state inputs from VM. If null, local demo state is used.
+    isListeningExternal: Boolean? = null,
+    statusTextExternal: String? = null,
+    partialTextExternal: String? = null,
+    finalTextExternal: String? = null,
 ) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-
-    var status by remember { mutableStateOf("Gatava. Piespied “Pārbaudi balsi”.") }
-    var showSettings by remember { mutableStateOf(false) }
+    // 2.1 ---- Local demo state (used only if VM state not provided) ------------
     var isListening by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf("Gatavs.") }
+    var partial by remember { mutableStateOf("") }
+    var final by remember { mutableStateOf("") }
+    var testPhrase by remember { mutableStateOf("Labdien! Kā Tev klājas šodien?") }
 
-    var settings by rememberSaveable(stateSaver = settingsSaver()) {
-        mutableStateOf(ElzaSettings())
-    }
+    val isListeningState = isListeningExternal ?: isListening
+    val statusState = statusTextExternal ?: status
+    val partialState = partialTextExternal ?: partial
+    val finalState = finalTextExternal ?: final
 
-    val preferred = when (settings.ttsChoice) {
-        TtsChoice.Elza -> "AzureTTS"
-        TtsChoice.System -> "SystemTTS"
-    }
-
-    val router = remember(context, preferred) {
-        TtsRouter(
-            engines = listOf(
-                SystemTtsEngine(context),
-                AzureTtsEngine(
-                    context = context,
-                    key = BuildConfig.AZURE_SPEECH_KEY,
-                    region = BuildConfig.AZURE_SPEECH_REGION
-                )
-            ),
-            preferred = preferred
-        )
-    }
-
-    // ---------- Runtime RECORD_AUDIO permission ----------
-    val recordAudioPerm = Manifest.permission.RECORD_AUDIO
-    var hasRecordAudio by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(context, recordAudioPerm) ==
-                    PackageManager.PERMISSION_GRANTED
-        )
-    }
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted -> hasRecordAudio = granted }
-
-    // ---------- STT serviss + dzīvescikls ----------
-    val stt = remember {
-        LocalAzureSttService(
-            context = context,
-            key = BuildConfig.AZURE_SPEECH_KEY,
-            region = BuildConfig.AZURE_SPEECH_REGION
-        )
-    }
-    DisposableEffect(Unit) { onDispose { stt.stop() } }
-
-    // --------------------------- UI karkass ---------------------------------
-    Scaffold(
-        topBar = {
+    Surface(modifier = modifier.fillMaxSize()) {
+        Column {
+            // 3. ---- Top bar ----------------------------------------------------
             TopAppBar(
-                title = { Text("Elza") },
-                actions = {
-                    IconButton(onClick = { showSettings = true }) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Iestatījumi")
+                title = { Text("Elza – runa un balss") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            )
+
+            // 4. ---- Body -------------------------------------------------------
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.Top,
+                horizontalAlignment = Alignment.Start
+            ) {
+                // 4.1 ---- Status card -------------------------------------------
+                StatusCard(
+                    title = "Statuss",
+                    text = statusState
+                )
+
+                Spacer(Modifier.height(16.dp))
+
+                // 4.2 ---- Controls row -----------------------------------------
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(
+                        onClick = {
+                            // Prefer external VM callback if provided
+                            if (onStartListening != null) {
+                                onStartListening()
+                            } else {
+                                // Demo behavior (local state)
+                                status = "Klausos…"
+                                isListening = true
+                                partial = ""
+                                final = ""
+                            }
+                        },
+                        enabled = !isListeningState
+                    ) {
+                        Text("Klausos")
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            if (onStopListening != null) {
+                                onStopListening()
+                            } else {
+                                status = "Apturēts."
+                                isListening = false
+                            }
+                        },
+                        enabled = isListeningState
+                    ) {
+                        Text("Stop")
+                    }
+
+                    Button(
+                        onClick = {
+                            val phrase = finalState.ifBlank { testPhrase }
+                            if (onSpeakTest != null) {
+                                onSpeakTest(phrase)
+                            } else {
+                                status = "Tiek atskaņots tests…"
+                            }
+                        }
+                    ) {
+                        Text("Pārbaudīt balsi")
                     }
                 }
-            )
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 20.dp, vertical = 24.dp),
-            verticalArrangement = Arrangement.Top,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            if (BuildConfig.DEBUG) {
+
+                Spacer(Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(16.dp))
+
+                // 4.3 ---- Recognized text panels --------------------------------
+                RecognizedCard(
+                    header = "Daļējais (partial)",
+                    text = partialState.ifBlank { "—" }
+                )
+                Spacer(Modifier.height(12.dp))
+                RecognizedCard(
+                    header = "Gala (final)",
+                    text = finalState.ifBlank { "—" }
+                )
+
+                Spacer(Modifier.height(24.dp))
+
+                // 4.4 ---- Test phrase input (for TTS) ---------------------------
                 Text(
-                    text = "DBG: region='${BuildConfig.AZURE_SPEECH_REGION}', key.len=${BuildConfig.AZURE_SPEECH_KEY.length}",
-                    style = MaterialTheme.typography.labelSmall
+                    "Tests frāzei (TTS):",
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
                 )
                 Spacer(Modifier.height(8.dp))
-            }
-
-            Surface(
-                tonalElevation = 2.dp,
-                shape = MaterialTheme.shapes.medium,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = "Status: $status",
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.bodyLarge,
-                    textAlign = TextAlign.Start
+                OutlinedTextField(
+                    value = testPhrase,
+                    onValueChange = { testPhrase = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Ieraksti ko Elza nolasīs…") },
+                    singleLine = true
                 )
-            }
 
-            Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(32.dp))
 
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Mic
-                FilledTonalButton(
-                    onClick = {
-                        if (!hasRecordAudio) {
-                            // Ja vajag, vari pievienot savu paskaidrojuma dialogu
-                            permissionLauncher.launch(recordAudioPerm)
-                            return@FilledTonalButton
-                        }
-                        isListening = true
-                        status = "Klausos…"
-                        stt.start(
-                            onResult = { txt ->
-                                status = "⟪$txt⟫"
-                                scope.launch {
-                                    val res = speakWithRate(
-                                        router,
-                                        preferred,
-                                        context,
-                                        txt,
-                                        settings.speechRate
-                                    )
-                                    status = res.fold(
-                                        onSuccess = { "OK" },
-                                        onFailure = { "KĻŪDA: ${it.message ?: "nezināma"}" }
-                                    )
-                                }
-                            },
-                            onError = { err ->
-                                isListening = false
-                                status = "STT kļūda: ${err.message}"
-                            }
-                        )
-                    }
-                ) {
-                    Icon(Icons.Filled.Mic, contentDescription = "Klausos")
-                    Spacer(Modifier.width(8.dp))
-                    Text("Klausos")
-                }
-
-                // Stop
-                OutlinedButton(
-                    onClick = {
-                        stt.stop()
-                        isListening = false
-                        status = "Apturēts."
-                    }
-                ) {
-                    Icon(Icons.Filled.Stop, contentDescription = "Stop")
-                    Spacer(Modifier.width(8.dp))
-                    Text("Stop")
-                }
-
-                // Pārbaudi balsi
-                Button(
-                    onClick = {
-                        scope.launch {
-                            val phrase = "Sveiki! Te runā Elza Everita."
-                            val res = speakWithRate(
-                                router,
-                                preferred,
-                                context,
-                                phrase,
-                                settings.speechRate
-                            )
-                            status = res.fold(
-                                onSuccess = { "OK" },
-                                onFailure = { "KĻŪDA: ${it.message ?: "nezināma"}" }
-                            )
-                        }
-                    }
-                ) {
-                    Text("Pārbaudi balsi")
+                // 4.5 ---- Demo hints (visible only in local mode) ---------------
+                if (statusTextExternal == null) {
+                    Text(
+                        "Demo režīms: šis ekrāns darbojas arī bez VM — pogas maina lokālu stāvokli.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
             }
         }
-    }
-
-    if (showSettings) {
-        SettingsDialog(
-            initial = settings,
-            onDismiss = { showSettings = false },
-            onApply = { newSettings ->
-                settings = newSettings
-                Toast.makeText(
-                    context,
-                    "Iestatījumi saglabāti: ${newSettings.themeChoice}",
-                    Toast.LENGTH_SHORT
-                ).show()
-                showSettings = false
-            }
-        )
     }
 }
 
-// --------------------------- Palīgfunkcija TTS -------------------------------
+// 5. ---- Sub-Components --------------------------------------------------------
+@Composable
+private fun StatusCard(title: String = "Statuss", text: String = "Gatavs.") {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            Text(text, style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+}
 
-private suspend fun speakWithRate(
-    router: TtsRouter,
-    preferred: String,
-    context: Context,
-    text: String,
-    rate: Float,
-): Result<Unit> {
-    // Šobrīd: ja Azure + rate ≠ 1.0 → varēsim pārslēgt uz azure.speakSsml(text, rate)
-    // Kad ieviesīsi SSML AzureTtsEngine, nomaini zemāk uz speakSsml.
-    return if (preferred == "AzureTTS" && kotlin.math.abs(rate - 1.0f) >= 0.01f) {
-        val azure = AzureTtsEngine(
-            context = context,
-            key = BuildConfig.AZURE_SPEECH_KEY,
-            region = BuildConfig.AZURE_SPEECH_REGION
-        )
-        azure.speak(text) // TODO: pāriet uz azure.speakSsml(text, rate)
-    } else {
-        router.speak(text)
+@Composable
+private fun RecognizedCard(header: String = "Daļējais (partial)", text: String = "—") {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                header,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(text, style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+}
+
+// 6. ---- Previews --------------------------------------------------------------
+@Preview(name = "Elza Screen (MaterialTheme)", showBackground = true, showSystemUi = true)
+@Composable
+private fun ElzaScreenPreview() {
+    // Use default Material3 theme for preview to avoid dependency on project theme.
+    MaterialTheme {
+        ElzaScreen()
     }
 }

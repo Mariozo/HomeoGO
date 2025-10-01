@@ -56,15 +56,10 @@ android {
 
         buildConfigField("String", "AZURE_SPEECH_KEY", "\"$azureKey\"")
         buildConfigField("String", "AZURE_SPEECH_REGION", "\"$azureRegion\"")
+    }
 
-        compileOptions {
-            sourceCompatibility = JavaVersion.VERSION_17
-            targetCompatibility = JavaVersion.VERSION_17
-        }
-
-        kotlinOptions {
-            jvmTarget = "17"
-        }
+    kotlin {
+        jvmToolchain(17)
     }
 
     dependencies {
@@ -95,5 +90,8 @@ android {
         // implementation(libs.material3) // Removed this duplicate
         // implementation(libs.lifecycle.runtime.compose) // Removed this line, as specific version below is used
         implementation("androidx.lifecycle:lifecycle-runtime-compose:2.6.2")
+        implementation(libs.androidx.customview.poolingcontainer)
+
+
     }
 }
