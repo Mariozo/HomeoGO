@@ -1,35 +1,26 @@
-// File: app/src/main/java/lv/mariozo/homeogo/ui/ElzaScreen.kt
-// Project: HomeoGO (Android, Jetpack Compose + Material3)
-// Module: app
-// Purpose: Visual Elza screen (STT + TTS controls) with status, partial/final text,
-//          and a small settings dialog; designed to compile cleanly and render in
-//          Android Studio Preview without project-specific dependencies.
-// Created: 01.okt.2025 14:18
-// ver. 1.8
-// Notes:
-//  - Pure UI: no direct imports of Azure/TTS/STT managers; integration is via callbacks.
-//  - Uses only stable Material3 APIs; HorizontalDivider (no deprecated Divider).
-//  - Two previews (light/dark) use MaterialTheme to avoid project theme dependency.
-//  - UI strings LV; code & comments EN. Blocks numbered per MK!.
-
-// File: app/src/main/java/lv/mariozo/homeogo/ui/ElzaScreen.kt
-// Project: HomeoGO (Android, Jetpack Compose + Material3)
-// Module: app
-// Purpose: Visual Elza screen wired for real operation (no local demo state). UI state comes
-//          from ViewModel; actions are forwarded via callbacks to STT/TTS managers.
-// Created: 01.okt.2025 17:47
-// ver. 1.9
-// Notes:
-//  - UI layout/logic preserved; only state source changed to external VM-provided state.
-//  - No direct references/imports to Azure/STT classes; integration via callbacks.
-//  - Two previews with mock state keep AS Preview working without project dependencies.
-//  - UI strings LV; code/comments EN. Blocks follow MK! numbering.
-
-
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 
+// File: app/src/main/java/lv/mariozo/homeogo/ui/ElzaScreen.kt
+// Project: HomeoGO (Android, Jetpack Compose + Material3)
+// Created: 03.okt.2025 07:40 (Rīga)
+// ver. 2.1
+// Purpose: Visual Elza screen wired to real ViewModel state & callbacks (no local demo state).
+//          UI reads immutable state from VM and forwards user actions to VM/STT/TTS.
+// Comments:
+//  - Uses only stable Material3 APIs (HorizontalDivider).
+//  - Preview provides mock state only for tooling; runtime uses real ViewModel.
+//  - UI strings: LV. Code & comments: EN. Blocks follow MK! numbering.
+
 package lv.mariozo.homeogo.ui
+
 // 1. ---- Imports ---------------------------------------------------------------
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import lv.mariozo.homeogo.voice.SpeechRecognizerManager // <-- ADD THIS LINE
+import lv.mariozo.homeogo.voice.TtsManager
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -67,8 +58,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 
-// 2. ---- Public state & API (from ViewModel) ----------------------------------
-// The ViewModel should expose this shape (directly or via mapping).
+// 2. ---- Public state & API (provided by ViewModel) ---------------------------
+// The ViewModel should expose this shape (directly or mapped).
 data class ElzaScreenState(
     val isListening: Boolean = false,
     val status: String = "Gatavs.",
@@ -77,10 +68,12 @@ data class ElzaScreenState(
     val testPhrase: String = "Sveiki! Šis ir Elzas testa teikums.",
 )
 
-// Host screen should pass real callbacks that call VM -> STT/TTS managers:
-//   onStartListening() -> vm.startListening()
-//   onStopListening()  -> vm.stopListening()
-//   onSpeakTest(txt)   -> vm.speakTest(txt)
+/**
+ * Main screen: purely driven by external state and callbacks (no demo logic).
+ * - state: immutable snapshot from VM (StateFlow/Compose state mapping).
+ * - onStartListening/onStopListening: call through to VM → STT manager.
+ * - onSpeakTest: call through to VM → TTS manager.
+ */
 @Composable
 fun ElzaScreen(
     state: ElzaScreenState,
@@ -89,7 +82,7 @@ fun ElzaScreen(
     onSpeakTest: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Local edit buffer for test phrase (does not drive app logic).
+    // Local UI buffer for test phrase text field. Does not own domain state.
     var testPhraseBuffer by rememberSaveable(state.testPhrase) { mutableStateOf(state.testPhrase) }
 
     Surface(modifier = modifier.fillMaxSize()) {
@@ -128,16 +121,12 @@ fun ElzaScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Button(
-                        onClick = {
-                            onStartListening()
-                        },
+                        onClick = onStartListening,
                         enabled = !state.isListening
                     ) { Text("Klausos") }
 
                     OutlinedButton(
-                        onClick = {
-                            onStopListening()
-                        },
+                        onClick = onStopListening,
                         enabled = state.isListening
                     ) { Text("Stop") }
 
@@ -228,8 +217,7 @@ private fun RecognizedCard(header: String, text: String) {
     }
 }
 
-// 6. ---- Previews (mock state, no VM required) --------------------------------
-// --- patch start: ElzaScreen.kt (previews — split & public) -------------------
+// 6. ---- Previews (mock state, for tooling only) ------------------------------
 @Preview(
     name = "Elza — Light",
     showBackground = true,
@@ -277,5 +265,3 @@ fun ElzaPreview_Dark() {
         )
     }
 }
-// --- patch end ----------------------------------------------------------------
-
