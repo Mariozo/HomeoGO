@@ -1,60 +1,64 @@
 // File: app/src/main/java/lv/mariozo/homeogo/voice/TtsManager.kt
-// Project: HomeoGO (Android, Jetpack Compose + Material3)
-// Created: 03.okt.2025 08:30 (Rīga)
-// ver. 1.0
-// Purpose: Wrapper around Azure Speech SDK for Text-to-Speech (TTS).
+// Project: HomeoGO
+// Created: 03.okt.2025 11:50 (Rīga)
+// ver. 1.3
+// Purpose: Azure Speech SDK Text-to-Speech wrapper without direct BuildConfig dependency.
+//          Keys/region are injected via constructor to avoid IDE/gradle generation timing issues.
 // Comments:
-//  - Provides speak(text) method with success callback.
-//  - Uses EveritaNeural voice for Latvian output.
-//  - Ensures async call, reports status back to VM.
-//  - Error messages localized to LV.
+//  - Pass values from caller (e.g., MainActivity/ElzaViewModel) using BuildConfig.* there.
+//  - Default Latvian voice: lv-LV-EveritaNeural. Switch if you need a different voice.
 
 package lv.mariozo.homeogo.voice
 
 // 1. ---- Imports ---------------------------------------------------------------
-import android.content.Context
-import com.microsoft.cognitiveservices.speech.*
+import com.microsoft.cognitiveservices.speech.ResultReason
+import com.microsoft.cognitiveservices.speech.SpeechConfig
+import com.microsoft.cognitiveservices.speech.SpeechSynthesizer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 // 2. ---- Manager ---------------------------------------------------------------
-class TtsManager(context: Context) {
+class TtsManager(
+    speechKey: String,
+    speechRegion: String,
+    voiceName: String = "lv-LV-EveritaNeural",
+) {
 
-    // Replace with secure config injection (BuildConfig, env or Secrets Gradle plugin)
+    // 2.1 ---- Speech configuration (constructor-injected) ----------------------
     private val speechConfig: SpeechConfig = SpeechConfig.fromSubscription(
-        BuildConfig.AZURE_SPEECH_KEY,
-        BuildConfig.AZURE_SPEECH_REGION
+        speechKey,
+        speechRegion
     ).apply {
         speechSynthesisLanguage = "lv-LV"
-        speechSynthesisVoiceName = "lv-LV-EveritaNeural"
+        speechSynthesisVoiceName = voiceName
     }
 
     private val synthesizer: SpeechSynthesizer = SpeechSynthesizer(speechConfig)
+    private val scope = CoroutineScope(Dispatchers.IO + Job())
 
     /**
-     * Speaks the given text asynchronously. Returns result to callback.
-     * @param text LV string to synthesize.
-     * @param onComplete true if OK, false if error.
+     * Synthesize speech for the given text asynchronously.
+     * @param text Text to speak (LV).
+     * @param onComplete Callback on main thread: true if success, false if error.
      */
     fun speak(text: String, onComplete: (Boolean) -> Unit) {
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
+        scope.launch {
+            runCatching {
                 val result = synthesizer.SpeakTextAsync(text).get()
-                val ok = result.reason == ResultReason.SynthesizingAudioCompleted
-                CoroutineScope(Dispatchers.Main).launch {
-                    onComplete(ok)
-                }
-            } catch (ex: Exception) {
-                CoroutineScope(Dispatchers.Main).launch {
-                    onComplete(false)
-                }
+                result.reason == ResultReason.SynthesizingAudioCompleted
+            }.onSuccess { ok ->
+                kotlinx.coroutines.withContext(Dispatchers.Main) { onComplete(ok) }
+            }.onFailure {
+                kotlinx.coroutines.withContext(Dispatchers.Main) { onComplete(false) }
             }
         }
     }
 
+    // 2.2 ---- Cleanup ----------------------------------------------------------
     fun release() {
-        synthesizer.close()
-        speechConfig.close()
+        runCatching { synthesizer.close() }
+        runCatching { speechConfig.close() }
     }
 }

@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?><!--
     File: app/src/main/AndroidManifest.xml
-    Project: HomeoGO (Android, Jetpack Compose + Material3)
-    Created: 03.okt.2025 08:35 (Rīga)
+    Project: HomeoGO
+    Created: 03.okt.2025 11:20 (Rīga)
     ver. 1.2
-    Purpose: Application manifest for HomeoGO app. Declares permissions for
-             microphone and network (needed by Azure STT/TTS).
+    Purpose: Application manifest for HomeoGO app. Deklarē atļaujas priekš STT/TTS
+             un piesaista galveno aktivitāti ar pielāgoto tēmu Theme.HomeoGO.
     Comments:
-      - Added INTERNET + RECORD_AUDIO permissions.
-      - Theme: left as Compose Material3 base.
-      - Activity: MainActivity as LAUNCHER.
+      - Permissions: INTERNET + RECORD_AUDIO (Azure Speech SDK).
+      - Theme: atsauce uz @style/Theme.HomeoGO (definēts themes.xml).
+      - MainActivity ir LAUNCHER.
 -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"

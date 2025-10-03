@@ -1,34 +1,37 @@
 // File: app/src/main/java/lv/mariozo/homeogo/voice/SpeechRecognizerManager.kt
-// Project: HomeoGO (Android, Jetpack Compose + Material3)
-// Created: 03.okt.2025 08:25 (Rīga)
-// ver. 1.0
-// Purpose: Wrapper around Azure Speech SDK for Speech-to-Text (STT).
+// Project: HomeoGO
+// Created: 03.okt.2025 11:55 (Rīga)
+// ver. 1.1
+// Purpose: Azure Speech SDK Speech-to-Text wrapper for HomeoGO.
 // Comments:
-//  - Provides startListening/stopListening/release.
-//  - Exposes callbacks for partial/final results, status and errors.
-//  - Uses default microphone as input.
-//  - Error messages are localized to LV.
+//  - Constructor-injected key/region (avoid direct BuildConfig dependency).
+//  - Provides startListening/stopListening/release APIs.
+//  - Exposes callbacks for partial/final results, status updates, and errors.
+//  - Uses default microphone as input and Latvian language.
 
 package lv.mariozo.homeogo.voice
 
 // 1. ---- Imports ---------------------------------------------------------------
 import android.content.Context
-import com.microsoft.cognitiveservices.speech.*
+import com.microsoft.cognitiveservices.speech.SpeechConfig
+import com.microsoft.cognitiveservices.speech.SpeechRecognizer
 import com.microsoft.cognitiveservices.speech.audio.AudioConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 // 2. ---- Manager ---------------------------------------------------------------
-class SpeechRecognizerManager(context: Context) {
+class SpeechRecognizerManager(
+    private val context: Context,
+    speechKey: String,
+    speechRegion: String,
+    language: String = "lv-LV",
+) {
 
-    // Replace with secure config injection (BuildConfig, env or Secrets Gradle plugin)
-    private val speechConfig: SpeechConfig = SpeechConfig.fromSubscription(
-        BuildConfig.AZURE_SPEECH_KEY,
-        BuildConfig.AZURE_SPEECH_REGION
-    ).apply {
-        speechRecognitionLanguage = "lv-LV"
-    }
+    private val speechConfig: SpeechConfig =
+        SpeechConfig.fromSubscription(speechKey, speechRegion).apply {
+            speechRecognitionLanguage = language
+        }
 
     private var audioConfig: AudioConfig? = null
     private var recognizer: SpeechRecognizer? = null
@@ -45,33 +48,29 @@ class SpeechRecognizerManager(context: Context) {
 
         audioConfig = AudioConfig.fromDefaultMicrophoneInput()
         recognizer = SpeechRecognizer(speechConfig, audioConfig).apply {
-            // Partial results
             recognizing.addEventListener { _, e ->
                 CoroutineScope(Dispatchers.Main).launch {
-                    callbacks.onPartial(e.result.text)
+                    callbacks.onPartial(e.result.text ?: "")
                 }
             }
-            // Final results
             recognized.addEventListener { _, e ->
                 CoroutineScope(Dispatchers.Main).launch {
-                    callbacks.onFinal(e.result.text)
+                    callbacks.onFinal(e.result.text ?: "")
                 }
             }
-            // Canceled / errors
             canceled.addEventListener { _, e ->
                 CoroutineScope(Dispatchers.Main).launch {
                     callbacks.onError("STT kļūda: ${e.errorDetails}")
                 }
             }
-            // Session started/stopped
             sessionStarted.addEventListener { _, _ ->
                 CoroutineScope(Dispatchers.Main).launch {
-                    callbacks.onStatus("Sesija sākta.")
+                    callbacks.onStatus("Sesija sākta")
                 }
             }
             sessionStopped.addEventListener { _, _ ->
                 CoroutineScope(Dispatchers.Main).launch {
-                    callbacks.onStatus("Sesija apturēta.")
+                    callbacks.onStatus("Sesija apturēta")
                 }
             }
         }

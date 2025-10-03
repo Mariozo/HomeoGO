@@ -1,15 +1,14 @@
 // File: app/build.gradle.kts
-// Project: HomeoGO (Android, Jetpack Compose + Material3)
-// Created: 03.okt.2025 09:50 (Rīga)
-// ver. 1.4
-// Purpose: App module Gradle build script with Compose, Lifecycle-Compose bridges,
-//          Azure Speech SDK, Material/AppCompat XML themes, poolingcontainer (Preview),
-//          and desugaring. SDK = 36/36; Kotlin/Compose compiler aligned.
+// Project: HomeoGO
+// Created: 03.okt.2025 11:35 (Rīga)
+// ver. 1.6
+// Purpose: App module Gradle build script. Ensures BuildConfig generation (with Azure fields),
+//          aligns Compose/Kotlin, adds lifecycle-compose, Material/AppCompat, Azure Speech SDK,
+//          poolingcontainer and desugaring. SDK = 36/36, minSdk = 24.
 // Comments:
-//  - Added lifecycle-runtime-compose & lifecycle-viewmodel-compose to fix unresolved imports.
-//  - Ensured material + appcompat present for Theme.Material3.DayNight.* parents/attrs.
-//  - Exclude com.azure (Java SDK family) to avoid MethodHandle issues on <26.
-//  - Compose compiler ext 1.5.13 (paired with Kotlin 1.9.23 via root plugins).
+//  - buildFeatures.buildConfig = true → garantē, ka BuildConfig tiek ģenerēts (AGP 8+).
+//  - defaultConfig.buildConfigField(..) pievieno AZURE_SPEECH_KEY/REGION.
+//  - Exclude com.azure (Java SDK family), lai izvairītos no MethodHandle kļūdām.
 
 plugins {
     id("com.android.application")
@@ -26,6 +25,10 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+
+        // Replace with secure values or inject via CI; placeholders keep compilation unblocked.
+        buildConfigField("String", "AZURE_SPEECH_KEY", "\"<your_key_here>\"")
+        buildConfigField("String", "AZURE_SPEECH_REGION", "\"westeurope\"")
     }
 
     buildTypes {
@@ -43,10 +46,10 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true   // ← ensure BuildConfig is generated
     }
 
     composeOptions {
-        // Aligned with Kotlin 1.9.23 (see Compose-Kotlin compatibility map)
         kotlinCompilerExtensionVersion = "1.5.13"
     }
 
@@ -72,7 +75,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
 
-    // Activity Compose host
+    // Compose activity host
     implementation(libs.androidx.activity.compose)
 
     // Compose (BOM-managed)
@@ -82,21 +85,21 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
 
-    // Lifecycle ⇄ Compose bridges (collectAsStateWithLifecycle, viewModel())
+    // Lifecycle ⇄ Compose bridges
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
-    // XML theme libs for Theme.Material3.DayNight.* and attrs like windowActionBar
+    // XML themes
     implementation(libs.material)
     implementation(libs.androidx.appcompat)
 
     // Azure Speech SDK (STT + TTS)
     implementation(libs.androidx.azure.speech)
 
-    // Preview poolingcontainer fix
+    // Compose Preview fix
     implementation(libs.androidx.customview.poolingcontainer)
 
-    // Desugaring
+    // Core library desugaring
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     // Debug tooling

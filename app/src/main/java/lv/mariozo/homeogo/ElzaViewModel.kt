@@ -1,95 +1,100 @@
 // File: app/src/main/java/lv/mariozo/homeogo/ui/ElzaViewModel.kt
-// Project: HomeoGO (Android, Jetpack Compose + Material3)
-// Created: 03.okt.2025 07:50 (Rīga)
-// ver. 1.1
-// Purpose: ViewModel providing ElzaScreenState, wiring Azure STT/TTS managers
-//          and exposing startListening, stopListening, speakTest callbacks.
+// Project: HomeoGO
+// Created: 03.okt.2025 12:00 (Rīga)
+// ver. 1.2
+// Purpose: ViewModel for ElzaScreen. Connects UI state to SpeechRecognizerManager (STT)
+//          and TtsManager (TTS). Exposes start/stop/speakTest methods.
 // Comments:
-//  - Holds StateFlow<ElzaScreenState> for Compose.
-//  - Wraps SpeechRecognizerManager (STT) and TtsManager (TTS).
-//  - Uses coroutineScope for background operations.
+//  - Injects Azure credentials via BuildConfig into managers.
+//  - Holds UI state as StateFlow for Compose UI.
+//  - Lifecycle-aware cleanup via onCleared().
 
 package lv.mariozo.homeogo.ui
 
 // 1. ---- Imports ---------------------------------------------------------------
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import lv.mariozo.homeogo.BuildConfig
 import lv.mariozo.homeogo.voice.SpeechRecognizerManager
 import lv.mariozo.homeogo.voice.TtsManager
 
-// 2. ---- ViewModel implementation ---------------------------------------------
-class ElzaViewModel(
-    private val stt: SpeechRecognizerManager,
-    private val tts: TtsManager,
-) : ViewModel() {
+// 2. ---- UI State --------------------------------------------------------------
+data class ElzaScreenState(
+    val status: String = "Idle",
+    val recognizedText: String = "",
+    val isListening: Boolean = false,
+)
 
-    // UI state exposed to ElzaScreen
+// 3. ---- ViewModel -------------------------------------------------------------
+class ElzaViewModel(application: Application) : AndroidViewModel(application) {
+
     private val _uiState = MutableStateFlow(ElzaScreenState())
     val uiState: StateFlow<ElzaScreenState> = _uiState
 
-    // 2.1 ---- STT callbacks ----------------------------------------------------
+    private val sttManager: SpeechRecognizerManager = SpeechRecognizerManager(
+        context = application.applicationContext,
+        speechKey = BuildConfig.AZURE_SPEECH_KEY,
+        speechRegion = BuildConfig.AZURE_SPEECH_REGION
+    )
+
+    private val ttsManager: TtsManager = TtsManager(
+        speechKey = BuildConfig.AZURE_SPEECH_KEY,
+        speechRegion = BuildConfig.AZURE_SPEECH_REGION
+    )
+
+    // 3.1 ---- STT control ------------------------------------------------------
     fun startListening() {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(
-                status = "Klausos…",
-                isListening = true,
-                partialText = "",
-                finalText = ""
-            )
-            stt.startListening(object : SpeechRecognizerManager.Callbacks {
-                override fun onPartial(text: String) {
-                    _uiState.value = _uiState.value.copy(partialText = text)
-                }
+        _uiState.value = _uiState.value.copy(status = "Klausos...", isListening = true)
+        sttManager.startListening(object : SpeechRecognizerManager.Callbacks {
+            override fun onPartial(text: String) {
+                _uiState.value =
+                    _uiState.value.copy(status = "Dzird daļu...", recognizedText = text)
+            }
 
-                override fun onFinal(text: String) {
-                    _uiState.value = _uiState.value.copy(
-                        finalText = text,
-                        isListening = false,
-                        status = "Atpazīts."
-                    )
-                }
+            override fun onFinal(text: String) {
+                _uiState.value = _uiState.value.copy(
+                    status = "Atpazīts!",
+                    recognizedText = text,
+                    isListening = false
+                )
+            }
 
-                override fun onStatus(status: String) {
-                    _uiState.value = _uiState.value.copy(status = status)
-                }
+            override fun onStatus(status: String) {
+                _uiState.value = _uiState.value.copy(status = status)
+            }
 
-                override fun onError(messageLv: String) {
-                    _uiState.value = _uiState.value.copy(
-                        status = "Kļūda: $messageLv",
-                        isListening = false
-                    )
-                }
-            })
-        }
+            override fun onError(messageLv: String) {
+                _uiState.value =
+                    _uiState.value.copy(status = "Kļūda: $messageLv", isListening = false)
+            }
+        })
     }
 
     fun stopListening() {
-        stt.stopListening()
-        _uiState.value = _uiState.value.copy(
-            isListening = false,
-            status = "Apturēts."
-        )
+        sttManager.stopListening()
+        _uiState.value = _uiState.value.copy(status = "Apturēts", isListening = false)
     }
 
-    // 2.2 ---- TTS callback -----------------------------------------------------
+    // 3.2 ---- TTS control ------------------------------------------------------
     fun speakTest(text: String) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(status = "Tiek atskaņots tests…")
-            tts.speak(text) { ok ->
+        _uiState.value = _uiState.value.copy(status = "Runā: $text")
+        ttsManager.speak(text) { ok ->
+            viewModelScope.launch {
                 _uiState.value = _uiState.value.copy(
-                    status = if (ok) "Pabeigts." else "TTS kļūda."
+                    status = if (ok) "Atskaņošana pabeigta" else "TTS kļūda"
                 )
             }
         }
     }
 
-    // 2.3 ---- Lifecycle --------------------------------------------------------
+    // 3.3 ---- Cleanup -----------------------------------------------------------
     override fun onCleared() {
         super.onCleared()
-        stt.release()
-        tts.release()
+        sttManager.release()
+        ttsManager.release()
     }
 }
