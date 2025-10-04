@@ -79,6 +79,13 @@ class ElzaViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(status = "Apturēts", isListening = false)
     }
 
+    fun onPermissionDenied() {
+        _uiState.value = _uiState.value.copy(
+            status = "Mikrofona atļauja ir nepieciešama!",
+            isListening = false
+        )
+    }
+
     // 3.2 ---- TTS control ------------------------------------------------------
     fun speakTest(text: String) {
         _uiState.value = _uiState.value.copy(status = "Runā: $text")
