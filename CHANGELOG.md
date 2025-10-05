@@ -26,3 +26,21 @@ buildConfigField("String", "AZURE_SPEECH_KEY", "\"<your_key_here>\"")
 buildConfigField("String", "AZURE_SPEECH_REGION", "\"northeurope\"")
 buildConfigField("String", "STT_LANGUAGE", "\"lv-LV\"")
 buildConfigField("boolean", "USE_SYSTEM_STT_ON_EMULATOR", "true")
+
+## v1.2.0 — WIP (04.okt.2025, Rīga)
+**Branch:** `feature/elza-ai-dialogue`  
+**Fokuss:** Elzas sarunu režīms (STT → loģika → TTS), saglabājot latviešu valodu (`STT_LANGUAGE="lv-LV"`).
+
+### Plānots šajā versijā
+- **ElzaLogicManager.kt**: sarunas loģika (teksta atbildes ģenerēšana), atdalīta no UI.
+- **Dialoga UI**: vienkāršs čata skats (lietotāja teiktais / Elzas atbilde).
+- **Plūsma**: STT (lv-LV) → loģika → TTS (lv-LV EveritaNeural).
+- **Emulatora režīms**: ja vajag, saglabāt sistēmas STT kā fallback (nekādas izmaiņas telefona plūsmā).
+- **Dokumentācija**: README sadaļa par valodas iestatījumiem (lv-LV).
+
+### Statuss
+- Bāze no v1.1.0 darbojas (telefons + emulators).
+- `STT_LANGUAGE` paliek **"lv-LV"**; `AZURE_SPEECH_REGION` paliek **"northeurope"**.
+
+---
+

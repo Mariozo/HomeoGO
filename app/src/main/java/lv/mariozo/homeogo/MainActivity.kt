@@ -15,6 +15,7 @@ package lv.mariozo.homeogo
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -25,14 +26,23 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import lv.mariozo.homeogo.ui.ElzaScreen
 import lv.mariozo.homeogo.ui.ElzaViewModel
 import lv.mariozo.homeogo.ui.theme.HomeoGOTheme
+import lv.mariozo.homeogo.BuildConfig as AppBuildConfig
 
+
+
+Log.d("HomeoGO-API", "BASE=${AppBuildConfig.ELZA_API_BASE} PATH=${AppBuildConfig.ELZA_API_PATH} TOKEN_EMPTY=${AppBuildConfig.ELZA_API_TOKEN.isEmpty()}")
 // 2. ---- Activity --------------------------------------------------------------
 class MainActivity : ComponentActivity() {
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         setContent {
+            Log.d(
+                "HomeoGO-API",
+                "BASE=${AppBuildConfig.ELZA_API_BASE} PATH=${AppBuildConfig.ELZA_API_PATH}"
+            )
             // Use the default ViewModel provider. It will correctly call the
             // ElzaViewModel(application: Application) constructor.
             val vm: ElzaViewModel = viewModel()

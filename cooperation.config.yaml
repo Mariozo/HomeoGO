@@ -1,0 +1,84 @@
+# ============================================================
+# File: cooperation.config.yaml
+# Project: HomeoGO
+# Purpose: Defines coder–tester collaboration and code standards
+# Location: / (GitHub repo root)
+# Created: 2025-10-04 (Europe/Riga)
+# ============================================================
+
+project:
+  name: "HomeoGO"
+  owner: "Māris (Tester)"
+  assistant: "ChatGPT (Coder)"
+  description: >
+    Defines collaboration style, coding headers, and MK!/SPS rules
+    for HomeoGO development within Android Studio (Kotlin, Jetpack Compose)
+    and related modules (TTS, MCP server, Elza integration).
+
+protocols:
+  MK:
+    version: "3.6"
+    description: "Black Box (Melnās Kastes) protocol – Tester gives tasks, Coder returns patch or full file."
+    rules:
+      - "If >1 change, return full file with standard header."
+      - "If 1 minor change, use MK! patch format (# /X.Y ... # X.Y//)."
+      - "Always include timestamp (Europe/Riga)."
+      - "Comments, headers, and docstrings must be in English; explanations in Latvian."
+      - "All code outputs are self-contained and ready for direct use in Android Studio."
+
+  SPS:
+    description: "Solī pa solim skaidrojumi in answers, friendly tone, structured lists."
+    rules:
+      - "Each explanation must be step-by-step (SPS)."
+      - "No redundant code rewriting if patch is enough."
+      - "Always verify Android Studio compatibility before proposing changes."
+
+headers:
+  template: |
+    // ============================================================
+    // File: {file_path}
+    // Module: {module_name}
+    // Purpose: {purpose}
+    // Created: {date} {time} (Europe/Riga)
+    // Version: {version}
+    // Author: Māris + ChatGPT
+    // ============================================================
+
+preferences:
+  code_style:
+    language: "Kotlin"
+    editor: "Android Studio"
+    indentation: "4 spaces"
+    line_endings: "LF"
+    max_line_length: 120
+    encoding: "UTF-8"
+
+  explanations:
+    language: "Latvian"
+    tone: "friendly and precise"
+    always_include_SPS: true
+
+  patch_handling:
+    if_multiple_changes: "return_full_file"
+    if_minor_change: "return_patch"
+    confirmation_required: true
+
+agents:
+  chatgpt:
+    model: "GPT-5"
+    role: "Coder"
+    access: "via GitHub + Android Studio integration"
+  gemini:
+    status: "preview"
+    purpose: "local AI assistant inside Android Studio"
+    sync: "reads same config file (optional)"
+
+storage:
+  git_repo: "https://github.com/Mariozo/HomeoGO"
+  default_branch: "main"
+  local_path: "E:/AndroidStudioProjects/HomeoGO"
+
+notes:
+  - "Keep this file updated with new collaboration rules."
+  - "All contributors should follow MK! and SPS principles."
+  - "Can be read by ChatGPT, Gemini, or other AI assistants to auto-configure behaviour."

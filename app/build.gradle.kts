@@ -1,11 +1,12 @@
 // File: app/build.gradle.kts
 // Project: HomeoGO
-// Created: 03.okt.2025 12:20 (Rīga)
-// ver. 1.7
+// Created: 04.okt.2025 10:35 (Rīga)
+// ver. 1.8
 // Purpose: App module Gradle build script. Lasa Azure atslēgas no local.properties/ENV,
 //          ģenerē BuildConfig laukus, pieslēdz Compose, Lifecycle-Compose, Material/AppCompat,
 //          Azure Speech SDK, poolingcontainer un desugaring. SDK = 36/36, minSdk = 24.
 // Comments:
+//  - Šajā versijā salabota blokiekavu struktūra (compileOptions atgriezts iekš android {}).
 //  - Keys are read from local.properties (AZURE_SPEECH_KEY/REGION) or environment variables.
 //  - If missing, build still succeeds but logs a warning; runtime STT/TTS will fail.
 //  - Next steps will request RECORD_AUDIO permission at runtime in MainActivity.
@@ -44,10 +45,30 @@ android {
         // Provide keys via BuildConfig (read from local.properties/ENV)
         buildConfigField("String", "AZURE_SPEECH_KEY", "\"$azureKey\"")
         buildConfigField("String", "AZURE_SPEECH_REGION", "\"$azureRegion\"")
+
         // STT valoda (default: latviešu). Vajadzības gadījumā vari nomainīt uz "en-US".
         buildConfigField("String", "STT_LANGUAGE", "\"lv-LV\"")
+
         // Ja true un darbojas emulatorā → izmantos sistēmas SpeechRecognizer STT
         buildConfigField("boolean", "USE_SYSTEM_STT_ON_EMULATOR", "true")
+
+        // Elza AI backend API (for /elza/reply endpoint)
+        val elzaBase = (props.getProperty("ELZA_API_BASE")
+            ?: System.getenv("ELZA_API_BASE")
+            ?: "http://10.0.2.2:5000").trim()
+
+        val elzaPath = (props.getProperty("ELZA_API_PATH")
+            ?: System.getenv("ELZA_API_PATH")
+            ?: "/elza/reply").trim()
+
+        val elzaToken = (props.getProperty("ELZA_API_TOKEN")
+            ?: System.getenv("ELZA_API_TOKEN")
+            ?: "").trim()
+
+        buildConfigField("String", "ELZA_API_BASE", "\"$elzaBase\"")
+        buildConfigField("String", "ELZA_API_PATH", "\"$elzaPath\"")
+        buildConfigField("String", "ELZA_API_TOKEN", "\"$elzaToken\"")
+
     }
 
     buildTypes {
@@ -76,7 +97,7 @@ android {
         jvmTarget = "17"
     }
 
-    // Desugaring for Java 8+ APIs on minSdk < 26
+    // Desugaring for Java 8+ APIs on minSdk < 26 (must live inside android {})
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
