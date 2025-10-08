@@ -1,13 +1,10 @@
 // File: app/src/main/java/lv/mariozo/homeogo/MainActivity.kt
 // Project: HomeoGO
 // Created: 03.okt.2025 12:50 (Rīga)
-// ver. 1.4
-// Purpose: Host Activity. Piesaista ElzaViewModel ElzaScreen UI un nodrošina
-//          mikrofona atļaujas pieprasīšanu pirms STT palaišanas (RECORD_AUDIO).
+// ver. 1.6
+// Purpose: Host Activity. Enables edge-to-edge display and handles mic permissions.
 // Comments:
-//  - Runtime permission: ja atļauja nav dota, pieprasa to ar Activity Result API,
-//    un tikai pēc apstiprinājuma palaiž vm.startListening().
-//  - Izmanto lifecycle-compose (collectAsStateWithLifecycle) un viewModel().
+//  - Added enableEdgeToEdge() for modern UI behavior.
 
 package lv.mariozo.homeogo
 
@@ -19,6 +16,7 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -29,8 +27,6 @@ import lv.mariozo.homeogo.ui.theme.HomeoGOTheme
 import lv.mariozo.homeogo.BuildConfig as AppBuildConfig
 
 
-
-Log.d("HomeoGO-API", "BASE=${AppBuildConfig.ELZA_API_BASE} PATH=${AppBuildConfig.ELZA_API_PATH} TOKEN_EMPTY=${AppBuildConfig.ELZA_API_TOKEN.isEmpty()}")
 // 2. ---- Activity --------------------------------------------------------------
 class MainActivity : ComponentActivity() {
 
@@ -38,11 +34,15 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Enable drawing behind system bars
+        enableEdgeToEdge()
+
+        Log.d(
+            "HomeoGO-API",
+            "BASE=${AppBuildConfig.ELZA_API_BASE} PATH=${AppBuildConfig.ELZA_API_PATH} TOKEN_EMPTY=${AppBuildConfig.ELZA_API_TOKEN.isEmpty()}"
+        )
+
         setContent {
-            Log.d(
-                "HomeoGO-API",
-                "BASE=${AppBuildConfig.ELZA_API_BASE} PATH=${AppBuildConfig.ELZA_API_PATH}"
-            )
             // Use the default ViewModel provider. It will correctly call the
             // ElzaViewModel(application: Application) constructor.
             val vm: ElzaViewModel = viewModel()
@@ -79,7 +79,7 @@ class MainActivity : ComponentActivity() {
                     state = state,
                     onStartListening = { requestMicThenStart() },
                     onStopListening = { vm.stopListening() },
-                    onSpeakTest = { vm.speakTest(it) }
+                    onClearChat = { vm.clearChat() }
                 )
             }
         }

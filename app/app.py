@@ -31,6 +31,27 @@ print(f"[ENV] KEY={'OK' if OPENAI_API_KEY else 'MISSING'} MODEL={OPENAI_MODEL}")
 client = OpenAI(api_key=OPENAI_API_KEY)
 app = Flask(__name__)
 
+# 1) Pirms-katra-pieprasījuma logs (redzēsi IP un ceļu)
+@app.before_request
+def _log_req():
+    try:
+        print(f"[REQ] {request.remote_addr} {request.method} {request.path}")
+    except:
+        pass
+
+# 2) Saknes ceļš "/" — lai var testēt ļoti vienkārši pārlūkā
+@app.get("/")
+def root():
+    return jsonify({"ok": True, "hint": "Try GET /health or POST /elza/reply"}), 200
+
+# 3) (pēc izvēles) Draudzīgs GET /elza/reply skaidrojums
+@app.get("/elza/reply")
+def elza_reply_get_info():
+    return jsonify({
+        "ok": False,
+        "hint": 'Use POST /elza/reply with JSON body {"prompt":"...","lang":"lv-LV"}'
+    }), 405
+
 @app.get("/health")
 def health():
     return jsonify({"ok": True, "model": OPENAI_MODEL, "key_loaded": bool(OPENAI_API_KEY)})
