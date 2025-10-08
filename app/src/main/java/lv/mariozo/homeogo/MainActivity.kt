@@ -1,14 +1,11 @@
 // File: app/src/main/java/lv/mariozo/homeogo/MainActivity.kt
 // Project: HomeoGO
-// Created: 03.okt.2025 12:50 (Rīga)
-// ver. 1.6
-// Purpose: Host Activity. Enables edge-to-edge display and handles mic permissions.
-// Comments:
-//  - Added enableEdgeToEdge() for modern UI behavior.
+// Created: 11.okt.2025 (Rīga)
+// ver. 4.0 (FINAL - Aligned with new ViewModel)
+// Purpose: Host Activity, wired up to the final ViewModel.
 
 package lv.mariozo.homeogo
 
-// 1. ---- Imports ---------------------------------------------------------------
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -24,50 +21,36 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import lv.mariozo.homeogo.ui.ElzaScreen
 import lv.mariozo.homeogo.ui.ElzaViewModel
 import lv.mariozo.homeogo.ui.theme.HomeoGOTheme
-import lv.mariozo.homeogo.BuildConfig as AppBuildConfig
 
-
-// 2. ---- Activity --------------------------------------------------------------
 class MainActivity : ComponentActivity() {
-
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Enable drawing behind system bars
         enableEdgeToEdge()
 
         Log.d(
             "HomeoGO-API",
-            "BASE=${AppBuildConfig.ELZA_API_BASE} PATH=${AppBuildConfig.ELZA_API_PATH} TOKEN_EMPTY=${AppBuildConfig.ELZA_API_TOKEN.isEmpty()}"
+            "BASE=${BuildConfig.ELZA_API_BASE} PATH=${BuildConfig.ELZA_API_PATH} TOKEN_EMPTY=${BuildConfig.ELZA_API_TOKEN.isEmpty()}"
         )
 
         setContent {
-            // Use the default ViewModel provider. It will correctly call the
-            // ElzaViewModel(application: Application) constructor.
             val vm: ElzaViewModel = viewModel()
             val state = vm.uiState.collectAsStateWithLifecycle().value
 
-            // Launcher to request microphone permission and start STT if granted
             val micPermissionLauncher = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.RequestPermission()
-            ) { granted ->
-                if (granted) {
-                    vm.startListening()
-                } else {
-                    // If the user denies permission, update the status via the VM
-                    vm.onPermissionDenied()
+                contract = ActivityResultContracts.RequestPermission(),
+                onResult = { granted ->
+                    if (granted) {
+                        vm.startListening()
+                    } else {
+                        vm.onPermissionDenied()
+                    }
                 }
-            }
+            )
 
-            // Helper function to check for permission and either start STT or request permission
             fun requestMicThenStart() {
-                val isGranted = ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.RECORD_AUDIO
-                ) == PackageManager.PERMISSION_GRANTED
-
-                if (isGranted) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
                     vm.startListening()
                 } else {
                     micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
@@ -79,7 +62,7 @@ class MainActivity : ComponentActivity() {
                     state = state,
                     onStartListening = { requestMicThenStart() },
                     onStopListening = { vm.stopListening() },
-                    onClearChat = { vm.clearChat() }
+                    onToggleMute = { vm.toggleMuteMode() }
                 )
             }
         }

@@ -1,12 +1,10 @@
 // File: app/src/main/java/lv/mariozo/homeogo/voice/TtsManager.kt
 // Project: HomeoGO
 // Created: 03.okt.2025 11:50 (Rīga)
-// ver. 1.3
-// Purpose: Azure Speech SDK Text-to-Speech wrapper without direct BuildConfig dependency.
-//          Keys/region are injected via constructor to avoid IDE/gradle generation timing issues.
+// ver. 1.4
+// Purpose: Azure Speech SDK Text-to-Speech wrapper.
 // Comments:
-//  - Pass values from caller (e.g., MainActivity/ElzaViewModel) using BuildConfig.* there.
-//  - Default Latvian voice: lv-LV-EveritaNeural. Switch if you need a different voice.
+//  - Added stop() method to allow interrupting speech synthesis.
 
 package lv.mariozo.homeogo.voice
 
@@ -52,6 +50,17 @@ class TtsManager(
                 kotlinx.coroutines.withContext(Dispatchers.Main) { onComplete(ok) }
             }.onFailure {
                 kotlinx.coroutines.withContext(Dispatchers.Main) { onComplete(false) }
+            }
+        }
+    }
+
+    /**
+     * Immediately stops any ongoing speech synthesis.
+     */
+    fun stop() {
+        scope.launch {
+            runCatching {
+                synthesizer.StopSpeakingAsync().get()
             }
         }
     }

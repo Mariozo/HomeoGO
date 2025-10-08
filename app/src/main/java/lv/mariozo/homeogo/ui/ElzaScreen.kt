@@ -1,223 +1,230 @@
 // File: app/src/main/java/lv/mariozo/homeogo/ui/ElzaScreen.kt
 // Project: HomeoGO
-// Created: 04.okt.2025 4:10 (Rīga)
-// ver. 1.9
-// Purpose: Elza screen UI. Uses Scaffold to respect window insets (safe areas).
+// Created: 12.okt.2025 (Rīga)
+// ver. 5.1 (FIX - Build error and code cleanup)
+// Purpose: A clean, state-driven UI for the voice assistant.
 // Comments:
-//  - Added missing import for HomeoGOTheme to fix Previews.
-
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+//  - Removed invalid import that caused a build error.
+//  - Hoisted 'mode' and 'speaking' variables to the top of the Composable for clarity.
 
 package lv.mariozo.homeogo.ui
 
-// # 1. ---- Imports -------------------------------------------------------------
-import android.content.res.Configuration
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import lv.mariozo.homeogo.ui.theme.HomeoGOTheme
 
-// # 2. ---- Public UI -----------------------------------------------------------
+private enum class VoiceMode { Idle, Listening, Speaking }
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ElzaScreen(
     state: ElzaScreenState,
     onStartListening: () -> Unit,
     onStopListening: () -> Unit,
-    onClearChat: () -> Unit,
+    onToggleMute: () -> Unit,
 ) {
+    val speaking = state.speakingMessage != null
+    val mode = when {
+        speaking -> VoiceMode.Speaking
+        state.isListening -> VoiceMode.Listening
+        else -> VoiceMode.Idle
+    }
+
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        topBar = {
-            Text(
-                text = "Elza",
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
+        floatingActionButton = {
+            Box(contentAlignment = Alignment.Center) {
+                PulsingHalo(
+                    visible = speaking || state.status.contains("Domā"),
+                    color = if (speaking) Color(0xFF616161) else Color(0xFF00C853)
+                )
+
+                val fabColor = when (mode) {
+                    VoiceMode.Idle -> Color(0xFF00C853)
+                    VoiceMode.Listening -> Color(0xFFD50000)
+                    VoiceMode.Speaking -> if (state.isMuted) Color(0xFFFFA000) else Color(0xFF9E9E9E)
+                }
+
+                FloatingActionButton(
+                    onClick = {
+                        when (mode) {
+                            VoiceMode.Speaking -> onStartListening()   // interrupt → VM apklusinās TTS un sāks STT
+                            VoiceMode.Listening -> onStopListening()   // stop STT
+                            VoiceMode.Idle -> onStartListening()       // start STT
+                        }
+                    },
+                    shape = CircleShape,
+                    containerColor = fabColor,
+                    contentColor = Color.White,
+                    modifier = Modifier
+                        .size(76.dp)
+                        .combinedClickable(
+                            onClick = { /* handled by primary FAB onClick */ },
+                            onLongClick = { if (mode == VoiceMode.Speaking) onToggleMute() }
+                        )
+                ) {
+                    Icon(Icons.Default.Phone, contentDescription = "Voice Assistant Button")
+                }
+            }
         },
-        bottomBar = {
-            ControlsRow(
-                isListening = state.isListening,
-                onStartListening = onStartListening,
-                onStopListening = onStopListening,
-                onClearChat = onClearChat,
-                modifier = Modifier
-                    .padding(16.dp) // Add padding around the controls
-                    .navigationBarsPadding() // Add padding for the navigation bar
-            )
-        }
-    ) { innerPadding ->
+        floatingActionButtonPosition = FabPosition.Center,
+        modifier = Modifier.navigationBarsPadding() // Apply edge-to-edge padding to Scaffold
+    ) { innerPadding -> // Scaffold provides padding for the content area
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding) // Apply padding from Scaffold
-                .padding(horizontal = 16.dp) // Keep horizontal padding
+                .padding(innerPadding) // Apply the padding to prevent content from going under the FAB
         ) {
-            // # 2.2 ---- Chat list ------------------------------------------------
-            ChatList(
-                messages = state.messages,
+            val listState = rememberLazyListState()
+            val messageCount = state.messages.size + if (state.speakingMessage != null) 1 else 0
+            LaunchedEffect(messageCount) {
+                if (messageCount > 0) listState.animateScrollToItem(messageCount)
+            }
+
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(top = 12.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-            )
+                    .padding(horizontal = 12.dp)
+            ) {
+                items(state.messages) { MessageBubble(it) }
+                state.speakingMessage?.let { item { MessageBubble(it) } }
+            }
 
-            // # 2.3 ---- Status line ---------------------------------------------
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "Stāvoklis: ${state.status}",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
+            StatusText(state.status)
         }
     }
 }
 
-// # 3. ---- Chat bubbles --------------------------------------------------------
 @Composable
-private fun ChatList(
-    messages: List<ChatMessage>,
-    modifier: Modifier = Modifier,
-) {
-    LazyColumn(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        reverseLayout = false
+private fun StatusText(status: String) {
+    Text(
+        text = status,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    )
+}
+
+@Composable
+private fun MessageBubble(msg: ChatMessage) {
+    val isElza = msg.from == Sender.ELZA
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = if (isElza) Arrangement.Start else Arrangement.End
     ) {
-        items(messages, key = { it.id }) { msg ->
-            ChatBubble(
-                text = msg.text,
-                isElza = msg.from == Sender.ELZA,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-    }
-}
-
-@Composable
-private fun ChatBubble(
-    text: String,
-    isElza: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    val bg =
-        if (isElza) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primaryContainer
-    val shape = RoundedCornerShape(
-        topStart = 16.dp, topEnd = 16.dp,
-        bottomStart = if (isElza) 4.dp else 16.dp,
-        bottomEnd = if (isElza) 16.dp else 4.dp
-    )
-
-    Row(modifier = modifier, horizontalArrangement = Arrangement.Start) {
-        Box(
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = if (isElza) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primaryContainer
+            ),
             modifier = Modifier
-                .fillMaxWidth()
-                .wrapContentWidth(if (isElza) Alignment.Start else Alignment.End)
-                .clip(shape)
-                .background(bg)
-                .padding(12.dp)
+                .fillMaxWidth(0.85f)
+                .clip(MaterialTheme.shapes.large)
         ) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodyMedium
-            )
+            if (msg.isSpeaking) {
+                PulsingSpeakingIndicator(modifier = Modifier.padding(14.dp))
+            } else {
+                Text(
+                    text = msg.text,
+                    color = if (isElza) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimaryContainer,
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(14.dp)
+                )
+            }
         }
     }
 }
 
-// # 4. ---- Controls (existing actions) ----------------------------------------
 @Composable
-private fun ControlsRow(
-    isListening: Boolean,
-    onStartListening: () -> Unit,
-    onStopListening: () -> Unit,
-    onClearChat: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val focus = LocalFocusManager.current
-
-    Column(modifier.fillMaxWidth()) {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                onClick = onStartListening,
-                enabled = !isListening
-            ) { Text("Klausos") }
-
-            Button(
-                onClick = onStopListening,
-                enabled = isListening
-            ) { Text("Stop") }
-
-            Button(
-                onClick = {
-                    focus.clearFocus()
-                    onClearChat()
-                }
-            ) { Text("Notīrīt") }
-        }
+private fun PulsingSpeakingIndicator(modifier: Modifier = Modifier) {
+    val infinite = rememberInfiniteTransition(label = "ellipsis")
+    val alphas = List(3) { i ->
+        infinite.animateFloat(
+            initialValue = 0.3f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(600, delayMillis = i * 100),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "alpha$i"
+        ).value
+    }
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        alphas.forEach { Dot(it) }
     }
 }
 
-// # 5. ---- Previews ------------------------------------------------------------
-@Preview(showBackground = true, showSystemUi = true, name = "Light")
 @Composable
-fun ElzaPreview_Light() {
-    val mock = ElzaScreenState(
-        status = "Gatava",
-        recognizedText = "",
-        isListening = false,
-        messages = listOf(
-            ChatMessage(1, Sender.USER, "Sveika, Elza!"),
-            ChatMessage(2, Sender.ELZA, "Sveika! Kā varu palīdzēt?")
-        )
-    )
-    HomeoGOTheme {
-        ElzaScreen(
-            state = mock,
-            onStartListening = {},
-            onStopListening = {},
-            onClearChat = {}
-        )
-    }
-}
-
-@Preview(
-    showBackground = true,
-    showSystemUi = true,
-    uiMode = Configuration.UI_MODE_NIGHT_YES,
-    name = "Dark"
+private fun Dot(alpha: Float) = Box(
+    Modifier
+        .size(8.dp)
+        .clip(CircleShape)
+        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha))
 )
+
 @Composable
-fun ElzaPreview_Dark() {
-    val mock = ElzaScreenState(
-        status = "Klausos…",
-        recognizedText = "…",
-        isListening = true,
-        messages = listOf(
-            ChatMessage(1, Sender.USER, "Kas jauns?"),
-            ChatMessage(2, Sender.ELZA, "Varu pastāstīt par laikapstākļiem vai tavu sarakstu.")
-        )
+private fun PulsingHalo(visible: Boolean, color: Color) {
+    if (!visible) return
+    val infinite = rememberInfiniteTransition(label = "halo")
+    val scale by infinite.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.3f,
+        animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "scale"
     )
-    HomeoGOTheme {
-        ElzaScreen(
-            state = mock,
-            onStartListening = {},
-            onStopListening = {},
-            onClearChat = {}
-        )
+    val alpha by infinite.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "alpha"
+    )
+    Canvas(
+        modifier = Modifier
+            .size(88.dp)
+            .graphicsLayer(scaleX = scale, scaleY = scale, alpha = alpha)
+    ) {
+        drawCircle(color = color)
     }
+}
+
+@Preview(showBackground = true, showSystemUi = true, name = "ElzaScreen Preview")
+@Composable
+private fun PreviewElzaScreen() {
+    ElzaScreen(
+        state = ElzaScreenState(
+            status = "Runā...",
+            isListening = false,
+            isMuted = true,
+            messages = listOf(ChatMessage(1, Sender.USER, "Pastāsti man par kvantu skaitļošanu.")),
+            speakingMessage = ChatMessage(2, Sender.ELZA, "...", isSpeaking = true)
+        ),
+        onStartListening = {},
+        onStopListening = {},
+        onToggleMute = {}
+    )
 }
