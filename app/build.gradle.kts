@@ -1,15 +1,7 @@
 // File: app/build.gradle.kts
 // Project: HomeoGO
-// Created: 04.okt.2025 10:35 (Rīga)
-// ver. 1.8
-// Purpose: App module Gradle build script. Lasa Azure atslēgas no local.properties/ENV,
-//          ģenerē BuildConfig laukus, pieslēdz Compose, Lifecycle-Compose, Material/AppCompat,
-//          Azure Speech SDK, poolingcontainer un desugaring. SDK = 36/36, minSdk = 24.
-// Comments:
-//  - Šajā versijā salabota blokiekavu struktūra (compileOptions atgriezts iekš android {}).
-//  - Keys are read from local.properties (AZURE_SPEECH_KEY/REGION) or environment variables.
-//  - If missing, build still succeeds but logs a warning; runtime STT/TTS will fail.
-//  - Next steps will request RECORD_AUDIO permission at runtime in MainActivity.
+// Created: 13.okt.2025 (Rīga)
+// ver. 2.0 (FIX - Add material-icons-extended dependency)
 
 import java.util.Properties
 
@@ -124,10 +116,14 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation("androidx.compose.material:material-icons-extended") // <-- PIEVIENOTS, lai atrisinātu visas ikonu problēmas
 
     // Lifecycle ⇄ Compose bridges
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+
+    // DataStore (for settings)
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
 
     // XML themes
     implementation(libs.material)

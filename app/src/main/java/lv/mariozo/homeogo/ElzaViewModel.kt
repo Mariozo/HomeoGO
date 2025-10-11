@@ -1,14 +1,11 @@
 // File: app/src/main/java/lv/mariozo/homeogo/ui/ElzaViewModel.kt
 // Project: HomeoGO
-// Created: 11.okt.2025 (Rīga)
-// ver. 4.0 (FINAL - Clean implementation based on user specification)
+// Created: 14.okt.2025 (Rīga)
+// ver. 5.4 (FEAT - Add setInteractionMode to handle drawer selections)
 // Purpose: ViewModel for ElzaScreen, implementing a robust state machine for voice interaction.
-// Features:
-//  - Always-on listening for seamless barge-in.
-//  - Robust echo cancellation via text normalization.
-//  - Temporary "..." speaking bubble that is replaced or removed on completion/interruption.
-//  - Toggleable mute mode for text-only responses.
-//  - Centralized state management to prevent race conditions and loops.
+// Comments:
+//  - Added `setInteractionMode` public function to allow the UI to change the app's mode.
+//  - This function stops all current activity (TTS/STT) before switching the mode.
 
 package lv.mariozo.homeogo.ui
 
@@ -34,27 +31,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
 
-// #1. ---- Data Models ----------------------------------------------------------
-
-enum class Sender { USER, ELZA }
-
-data class ChatMessage(
-    val id: Long,
-    val from: Sender,
-    val text: String,
-    val isSpeaking: Boolean = false, // Used for the temporary "..." bubble
-)
-
-data class ElzaScreenState(
-    val status: String = "Gatavs",
-    val isListening: Boolean = false,
-    val isMuted: Boolean = false,
-    val messages: List<ChatMessage> = emptyList(),
-    val speakingMessage: ChatMessage? = null,
-    internal val currentlySpokenText: String? = null, // For echo cancellation
-)
-
-// #2. ---- ViewModel ------------------------------------------------------------
+// #1. ---- ViewModel ------------------------------------------------------------
 
 class ElzaViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -65,6 +42,7 @@ class ElzaViewModel(application: Application) : AndroidViewModel(application) {
     private val ttsManager: TtsManager
     private val logic: ElzaLogicManager
 
+    private var enableBargeIn = true
     private var nextId = 1L
 
     init {
@@ -87,23 +65,30 @@ class ElzaViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- 2.1. Public Actions from UI ---
 
-    fun startListening() {
-        // Ja runā → apklusinām, BET NEATGRIEŽAMIES: tūlīt startējam STT
-        if (_uiState.value.speakingMessage != null) {
-            stopAllActivity(restartListening = false, becauseOfInterrupt = true)
-        }
+    fun setInteractionMode(mode: InteractionMode) {
+        // Stop any ongoing activity before switching modes.
+        stopAllActivity(restartListening = false, becauseOfInterrupt = false)
+        _uiState.update { it.copy(interactionMode = mode) }
+        // Here you might add logic to navigate to a different screen for SETTINGS
+    }
+
+    fun startListening(isBargeInSetup: Boolean = false) {
         if (_uiState.value.isListening) return
+
+        if (!isBargeInSetup && _uiState.value.speakingMessage != null) {
+            stopAllActivity(restartListening = true, becauseOfInterrupt = true)
+            return
+        }
 
         _uiState.update { it.copy(status = "Klausos...", isListening = true) }
         sttManager.startListening(object : SpeechRecognizerManager.Callbacks {
             override fun onFinal(text: String) = handleRecognition(text)
-            override fun onPartial(text: String) { /* optional */
+            override fun onPartial(text: String) {
+                _uiState.update { it.copy(status = "Dzird: $text") }
             }
-
             override fun onStatus(status: String) {
                 _uiState.update { it.copy(status = status) }
             }
-
             override fun onError(messageLv: String) {
                 _uiState.update { it.copy(status = "STT Kļūda: $messageLv", isListening = false) }
             }
@@ -116,9 +101,10 @@ class ElzaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleMuteMode() {
         _uiState.update { it.copy(isMuted = !it.isMuted) }
-        // If Elza was speaking, stop her, as the mode has changed.
         if (_uiState.value.speakingMessage != null) {
-            stopAllActivity(restartListening = true, becauseOfInterrupt = true)
+            ttsManager.stop()
+            _uiState.update { it.copy(speakingMessage = null, currentlySpokenText = null) }
+            startListening()
         }
     }
 
@@ -129,26 +115,33 @@ class ElzaViewModel(application: Application) : AndroidViewModel(application) {
     // --- 2.2. Internal Logic ---
 
     private fun handleRecognition(recognizedText: String) {
-        if (recognizedText.isBlank()) return
+        if (recognizedText.isBlank()) {
+            if (_uiState.value.speakingMessage == null) startListening()
+            return
+        }
 
-        // --- ROBUST ECHO CANCELLATION ---
-        val spokenText = _uiState.value.currentlySpokenText
-        if (spokenText != null) {
+        val isBargeIn = _uiState.value.speakingMessage != null
+
+        if (isBargeIn) {
+            val spokenText = _uiState.value.currentlySpokenText ?: ""
             fun String.normalize() = this.lowercase().filter { it.isLetterOrDigit() }
             val normalizedSpoken = spokenText.normalize()
             val normalizedRecognized = recognizedText.normalize()
 
-            if (normalizedRecognized.isNotEmpty() && (normalizedSpoken.contains(normalizedRecognized) || normalizedRecognized.contains(
-                    normalizedSpoken
-                ))
-            ) {
+            if (normalizedRecognized.isNotEmpty() && normalizedSpoken.contains(normalizedRecognized)) {
                 Log.d("HomeoGO-Echo", "Ignored echo: '$recognizedText'")
-                return // It's an echo, do nothing.
+                startListening(isBargeInSetup = true)
+                return
             }
         }
 
-        // --- USER INTERRUPT & PROCESSING ---
-        stopAllActivity(restartListening = false, becauseOfInterrupt = true)
+        sttManager.stopListening()
+        _uiState.update { it.copy(isListening = false, status = "Apstrādā...") }
+
+        if (isBargeIn) {
+            ttsManager.stop()
+            _uiState.update { it.copy(speakingMessage = null, currentlySpokenText = null) }
+        }
 
         appendMessage(Sender.USER, recognizedText)
         processInput(recognizedText)
@@ -158,26 +151,28 @@ class ElzaViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _uiState.update { it.copy(status = "Domā…") }
 
-            // Create a temporary message that will be shown while Elza thinks and speaks.
-            val tempMsg =
-                ChatMessage(id = nextId++, from = Sender.ELZA, text = "...", isSpeaking = true)
+            val tempMsg = ChatMessage(id = nextId++, from = Sender.ELZA, text = "...", isSpeaking = true)
             _uiState.update { it.copy(speakingMessage = tempMsg) }
 
             val reply = logic.replyTo(text, locale = BuildConfig.STT_LANGUAGE)
 
-            // If AI fails, remove the temp bubble and go back to listening.
             if (reply.text.isBlank()) {
                 _uiState.update { it.copy(status = "AI kļūda", speakingMessage = null) }
                 startListening()
                 return@launch
             }
 
-            // If muted, just replace the temp bubble with the final text and restart listening.
-            if (_uiState.value.isMuted) {
+            val shouldUseVoice =
+                _uiState.value.interactionMode == InteractionMode.VOICE && !_uiState.value.isMuted
+
+            if (shouldUseVoice) {
+                if (enableBargeIn) {
+                    startListening(isBargeInSetup = true)
+                }
+                speak(reply.text, tempMsg.id)
+            } else {
                 replaceTempBubbleWithFinal(reply.text, tempMsg.id)
                 startListening()
-            } else {
-                speak(reply.text, tempMsg.id)
             }
         }
     }
@@ -192,37 +187,31 @@ class ElzaViewModel(application: Application) : AndroidViewModel(application) {
             if (success) {
                 replaceTempBubbleWithFinal(fullText, tempMsgId)
             } else {
-                // If TTS failed, just clear the temp bubble.
-                _uiState.update {
-                    it.copy(
-                        speakingMessage = null,
-                        currentlySpokenText = null,
-                        status = "TTS Kļūda"
-                    )
-                }
+                _uiState.update { it.copy(speakingMessage = null, currentlySpokenText = null, status = "TTS Kļūda") }
             }
-            // After speaking (or failing), automatically restart the listening cycle.
-            startListening()
+
+            if (!enableBargeIn) {
+                startListening()
+            }
         }
     }
 
     // --- 2.3. State & Message Helpers ---
 
     private fun stopAllActivity(restartListening: Boolean, becauseOfInterrupt: Boolean) {
-        sttManager.stopListening() // Always stop STT
-        ttsManager.stop()         // Always stop TTS
+        sttManager.stopListening()
+        ttsManager.stop()
 
         _uiState.update {
             it.copy(
                 isListening = false,
-                speakingMessage = null, // Always remove the temp bubble
+                speakingMessage = null,
                 currentlySpokenText = null,
                 status = if (becauseOfInterrupt) "Pārtraukts" else "Apturēts"
             )
         }
 
         if (restartListening) {
-            // Use a small delay to prevent immediate re-triggering issues
             viewModelScope.launch {
                 kotlinx.coroutines.delay(100) // Debounce delay
                 startListening()
@@ -232,7 +221,7 @@ class ElzaViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun replaceTempBubbleWithFinal(text: String, tempMsgId: Long) {
         _uiState.update { state ->
-            if (state.speakingMessage?.id != tempMsgId) return@update state
+            if (state.speakingMessage?.id != tempMsgId) return@update state // Already interrupted
             val finalMessage = state.speakingMessage.copy(text = text, isSpeaking = false)
             state.copy(
                 messages = state.messages + finalMessage,
@@ -269,8 +258,7 @@ class ElzaViewModel(application: Application) : AndroidViewModel(application) {
                         setRequestProperty("Authorization", "Bearer ${BuildConfig.ELZA_API_TOKEN}")
                     }
 
-                    val payload =
-                        JSONObject().put("prompt", userText).put("lang", locale).toString()
+                    val payload = JSONObject().put("prompt", userText).put("lang", locale).toString()
                     outputStream.use { it.write(payload.toByteArray(StandardCharsets.UTF_8)) }
 
                     val responseCode = responseCode
@@ -295,8 +283,11 @@ class ElzaViewModel(application: Application) : AndroidViewModel(application) {
     private fun isNetworkAvailable(ctx: Context): Boolean {
         val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         return cm.activeNetwork?.let {
-            cm.getNetworkCapabilities(it)
-                ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            cm.getNetworkCapabilities(it)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
         } ?: false
+    }
+
+    fun setBargeInEnabled(enabled: Boolean) {
+        enableBargeIn = enabled
     }
 }

@@ -1,10 +1,11 @@
 // File: app/src/main/java/lv/mariozo/homeogo/voice/TtsManager.kt
 // Project: HomeoGO
 // Created: 03.okt.2025 11:50 (Rīga)
-// ver. 1.4
-// Purpose: Azure Speech SDK Text-to-Speech wrapper.
+// ver. 1.5
+// Purpose: Azure Speech SDK Text-to-Speech wrapper (PCM 16 kHz output).
 // Comments:
-//  - Added stop() method to allow interrupting speech synthesis.
+//  - Added 16 kHz PCM output to reduce resampling distortion in emulator.
+//  - Keeps full playback on physical devices and barge-in compatibility.
 
 package lv.mariozo.homeogo.voice
 
@@ -12,10 +13,12 @@ package lv.mariozo.homeogo.voice
 import com.microsoft.cognitiveservices.speech.ResultReason
 import com.microsoft.cognitiveservices.speech.SpeechConfig
 import com.microsoft.cognitiveservices.speech.SpeechSynthesizer
+import com.microsoft.cognitiveservices.speech.SpeechSynthesisOutputFormat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // 2. ---- Manager ---------------------------------------------------------------
 class TtsManager(
@@ -31,6 +34,10 @@ class TtsManager(
     ).apply {
         speechSynthesisLanguage = "lv-LV"
         speechSynthesisVoiceName = voiceName
+        // Added fixed PCM 16 kHz output for emulator stability
+        setSpeechSynthesisOutputFormat(
+            SpeechSynthesisOutputFormat.Riff16Khz16BitMonoPcm
+        )
     }
 
     private val synthesizer: SpeechSynthesizer = SpeechSynthesizer(speechConfig)
@@ -47,9 +54,9 @@ class TtsManager(
                 val result = synthesizer.SpeakTextAsync(text).get()
                 result.reason == ResultReason.SynthesizingAudioCompleted
             }.onSuccess { ok ->
-                kotlinx.coroutines.withContext(Dispatchers.Main) { onComplete(ok) }
+                withContext(Dispatchers.Main) { onComplete(ok) }
             }.onFailure {
-                kotlinx.coroutines.withContext(Dispatchers.Main) { onComplete(false) }
+                withContext(Dispatchers.Main) { onComplete(false) }
             }
         }
     }

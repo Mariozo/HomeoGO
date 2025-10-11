@@ -1,47 +1,137 @@
 // File: app/src/main/java/lv/mariozo/homeogo/ui/ElzaScreen.kt
 // Project: HomeoGO
-// Created: 12.okt.2025 (Rīga)
-// ver. 5.1 (FIX - Build error and code cleanup)
-// Purpose: A clean, state-driven UI for the voice assistant.
+// Created: 14.okt.2025 (Rīga)
+// ver. 6.1 (FEAT - Add interactionMode to state)
+// Purpose: A clean, state-driven UI for the voice assistant with navigation.
 // Comments:
-//  - Removed invalid import that caused a build error.
-//  - Hoisted 'mode' and 'speaking' variables to the top of the Composable for clarity.
+//  - Added `interactionMode` to ElzaScreenState to hold the current app mode.
 
 package lv.mariozo.homeogo.ui
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
+
+// #1. ---- Data Models & Enums --------------------------------------------------
+enum class Sender { USER, ELZA }
+
+enum class InteractionMode {
+    SETTINGS, // To open the settings screen
+    CHAT,     // Written questions, written answers
+    VOICE     // Spoken questions, spoken answers
+}
+
+data class ChatMessage(
+    val id: Long,
+    val from: Sender,
+    val text: String,
+    val isSpeaking: Boolean = false
+)
+
+data class ElzaScreenState(
+    val status: String = "Gatavs",
+    val isListening: Boolean = false,
+    val isMuted: Boolean = false,
+    val messages: List<ChatMessage> = emptyList(),
+    val speakingMessage: ChatMessage? = null,
+    val interactionMode: InteractionMode = InteractionMode.VOICE, // <-- PIEVIENOTS
+    internal val currentlySpokenText: String? = null
+)
 
 private enum class VoiceMode { Idle, Listening, Speaking }
 
-@OptIn(ExperimentalFoundationApi::class)
+// #2. ---- Main UI Composable -----------------------------------------------------
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ElzaScreen(
     state: ElzaScreenState,
     onStartListening: () -> Unit,
     onStopListening: () -> Unit,
     onToggleMute: () -> Unit,
+    onModeSelected: (InteractionMode) -> Unit, // Callback for drawer item clicks
+) {
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                    ModalDrawerSheet {
+                        Spacer(Modifier.height(12.dp))
+                        NavigationDrawerItem(
+                            icon = { Icon(Icons.Default.Settings, contentDescription = "Iestatījumi") },
+                            label = { Text("Iestatījumi") },
+                            selected = state.interactionMode == InteractionMode.SETTINGS,
+                            onClick = { onModeSelected(InteractionMode.SETTINGS); scope.launch { drawerState.close() } },
+                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                        )
+                        NavigationDrawerItem(
+                            icon = { Icon(Icons.Default.Chat, contentDescription = "Rakstiskais režīms") },
+                            label = { Text("Rakstiskais režīms") },
+                            selected = state.interactionMode == InteractionMode.CHAT,
+                            onClick = { onModeSelected(InteractionMode.CHAT); scope.launch { drawerState.close() } },
+                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                        )
+                        NavigationDrawerItem(
+                            icon = { Icon(Icons.Default.Phone, contentDescription = "Telefona režīms") },
+                            label = { Text("Telefona režīms") },
+                            selected = state.interactionMode == InteractionMode.VOICE,
+                            onClick = { onModeSelected(InteractionMode.VOICE); scope.launch { drawerState.close() } },
+                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                        )
+                    }
+                }
+            },
+            gesturesEnabled = drawerState.isOpen
+        ) {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                ElzaMainContent(
+                    state = state,
+                    onStartListening = onStartListening,
+                    onStopListening = onStopListening,
+                    onToggleMute = onToggleMute,
+                    onOpenDrawer = { scope.launch { drawerState.open() } }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ElzaMainContent(
+    state: ElzaScreenState,
+    onStartListening: () -> Unit,
+    onStopListening: () -> Unit,
+    onToggleMute: () -> Unit,
+    onOpenDrawer: () -> Unit
 ) {
     val speaking = state.speakingMessage != null
     val mode = when {
@@ -51,6 +141,16 @@ fun ElzaScreen(
     }
 
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Elza") },
+                actions = {
+                    IconButton(onClick = onOpenDrawer) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Opcijas")
+                    }
+                }
+            )
+        },
         floatingActionButton = {
             Box(contentAlignment = Alignment.Center) {
                 PulsingHalo(
@@ -64,36 +164,55 @@ fun ElzaScreen(
                     VoiceMode.Speaking -> if (state.isMuted) Color(0xFFFFA000) else Color(0xFF9E9E9E)
                 }
 
-                FloatingActionButton(
-                    onClick = {
-                        when (mode) {
-                            VoiceMode.Speaking -> onStartListening()   // interrupt → VM apklusinās TTS un sāks STT
-                            VoiceMode.Listening -> onStopListening()   // stop STT
-                            VoiceMode.Idle -> onStartListening()       // start STT
-                        }
-                    },
-                    shape = CircleShape,
-                    containerColor = fabColor,
-                    contentColor = Color.White,
+                val fabIcon = when {
+                    mode == VoiceMode.Speaking && state.isMuted -> Icons.Default.MicOff
+                    mode == VoiceMode.Speaking -> Icons.Default.Mic
+                    else -> Icons.Default.Phone
+                }
+
+                val fabIconTint = if (mode == VoiceMode.Speaking && state.isMuted) {
+                    Color.Black
+                } else {
+                    Color.White
+                }
+
+                Box(
                     modifier = Modifier
                         .size(76.dp)
-                        .combinedClickable(
-                            onClick = { /* handled by primary FAB onClick */ },
-                            onLongClick = { if (mode == VoiceMode.Speaking) onToggleMute() }
-                        )
+                        .clip(CircleShape)
+                        .background(fabColor)
+                        .pointerInput(mode, state.isMuted) {
+                            detectTapGestures(
+                                onTap = {
+                                    when (mode) {
+                                        VoiceMode.Speaking -> onStartListening()
+                                        VoiceMode.Listening -> onStopListening()
+                                        VoiceMode.Idle -> onStartListening()
+                                    }
+                                },
+                                onLongPress = {
+                                    if (mode == VoiceMode.Speaking) onToggleMute()
+                                }
+                            )
+                        },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Phone, contentDescription = "Voice Assistant Button")
+                    Icon(
+                        imageVector = fabIcon,
+                        contentDescription = "Voice Assistant Button",
+                        modifier = Modifier.size(36.dp),
+                        tint = fabIconTint
+                    )
                 }
             }
         },
         floatingActionButtonPosition = FabPosition.Center,
-        modifier = Modifier.navigationBarsPadding() // Apply edge-to-edge padding to Scaffold
-    ) { innerPadding -> // Scaffold provides padding for the content area
-
+        modifier = Modifier.navigationBarsPadding()
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding) // Apply the padding to prevent content from going under the FAB
+                .padding(innerPadding)
         ) {
             val listState = rememberLazyListState()
             val messageCount = state.messages.size + if (state.speakingMessage != null) 1 else 0
@@ -118,6 +237,8 @@ fun ElzaScreen(
         }
     }
 }
+
+// #3. ---- UI Sub-components -----------------------------------------------------
 
 @Composable
 private fun StatusText(status: String) {
@@ -212,19 +333,24 @@ private fun PulsingHalo(visible: Boolean, color: Color) {
     }
 }
 
+// #4. ---- Preview ----------------------------------------------------------------
+
 @Preview(showBackground = true, showSystemUi = true, name = "ElzaScreen Preview")
 @Composable
 private fun PreviewElzaScreen() {
-    ElzaScreen(
-        state = ElzaScreenState(
-            status = "Runā...",
-            isListening = false,
-            isMuted = true,
-            messages = listOf(ChatMessage(1, Sender.USER, "Pastāsti man par kvantu skaitļošanu.")),
-            speakingMessage = ChatMessage(2, Sender.ELZA, "...", isSpeaking = true)
-        ),
-        onStartListening = {},
-        onStopListening = {},
-        onToggleMute = {}
-    )
+    MaterialTheme {
+        ElzaScreen(
+            state = ElzaScreenState(
+                status = "Runā...",
+                isListening = false,
+                isMuted = true,
+                messages = listOf(ChatMessage(1, Sender.USER, "Pastāsti man par kvantu skaitļošanu.")),
+                speakingMessage = ChatMessage(2, Sender.ELZA, "...", isSpeaking = true)
+            ),
+            onStartListening = {},
+            onStopListening = {},
+            onToggleMute = {},
+            onModeSelected = {}
+        )
+    }
 }

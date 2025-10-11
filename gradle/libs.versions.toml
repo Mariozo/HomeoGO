@@ -1,19 +1,14 @@
 # File: gradle/libs.versions.toml
 # Project: HomeoGO (Android, Jetpack Compose + Material3)
-# Created: 03.okt.2025 11:05 (Rīga)
-# ver. 1.4
+# Created: 13.okt.2025 15:00 (Rīga)
+# ver. 1.5 (FIX - Update AGP to 8.5.0 for compileSdk 36 compatibility)
 # Purpose: Central dependency & plugin version catalog for HomeoGO.
 # Comments:
-#  - Kotlin 1.9.23 + Compose Compiler 1.5.13 = saderīgs komplekts.
-#  - AGP pacelts uz 8.4.2 (sader ar Android Studio Ladybug 2024.2.2).
-#  - Added lifecycle-runtime-compose + lifecycle-viewmodel-compose for viewModel/collectAsStateWithLifecycle.
-#  - Added material + appcompat for XML themes.
-#  - Added desugar_jdk_libs for MethodHandle unification.
-#  - Added Azure Speech SDK 1.46.0 + poolingcontainer.
+#  - AGP updated to 8.5.0 to resolve build warnings with compileSdk 36.
 
 [versions]
 kotlin = "1.9.23"
-agp = "8.4.2"
+agp = "8.5.0"
 
 compose-bom = "2025.01.00"
 lifecycle = "2.8.3"
