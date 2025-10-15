@@ -1,3 +1,42 @@
+<!-- File: app/src/main/res/values/strings.xml -->
+<!-- Project: HomeoGO -->
+<!-- Created: 18.okt.2025 - 14:15 (Europe/Riga) -->
+<!-- ver. 1.4 (SPS-43: Add missing UI strings) -->
 <resources>
     <string name="app_name">HomeoGO</string>
+    <string name="main_stt_auth_warning">⚠️ Azure Speech keys not found. STT/TTS will not authenticate.</string>
+
+    <!-- ElzaViewModel Status Strings (English) -->
+    <string name="status_ready">Ready</string>
+    <string name="status_listening">Listening…</string>
+    <string name="status_hearing">Heard: %1$s</string>
+    <string name="status_processing">Processing…</string>
+    <string name="status_thinking">Thinking…</string>
+    <string name="status_speaking">Speaking…</string>
+    <string name="status_interrupted">Interrupted</string>
+    <string name="status_stopped">Stopped</string>
+    <string name="status_mic_permission_needed">Microphone permission needed!</string>
+    <string name="status_stt_error">STT Error: %1$s</string>
+    <string name="status_tts_error">TTS Error</string>
+    <string name="status_ai_error">AI Error</string>
+    <string name="status_no_network">Cannot reply – no network connection.</string>
+    <string name="status_backend_http_error">Failed to get a reply (HTTP %1$d).</string>
+    <string name="status_backend_connection_error">Failed to connect to Elza\'s server.</string>
+
+    <!-- SPS-43: ElzaScreen UI Strings (English) -->
+    <string name="elza_input_placeholder">Ask Elza…</string>
+    <string name="elza_send_button_description">Send text</string>
+    <string name="elza_speak_button_description">Speak to Elza</string>
+    <string name="elza_mute_button_description">Mute</string>
+    <string name="elza_mode_voice">Voice</string>
+    <string name="elza_mode_text">Text</string>
+    <string name="elza_mode_hybrid">Hybrid</string>
+    <string name="elza_mode_settings">Settings</string>
+    <string name="elza_listening_status">Listening...</string>
+    <string name="elza_processing_status">Processing...</string>
+    <string name="elza_thinking_status">Thinking...</string>
+    <string name="elza_replying_status">Speaking...</string>
+    <string name="elza_muted_status">Muted</string>
+    <string name="elza_error_status">Error</string>
+    <string name="elza_permission_denied_status">Microphone permission needed!</string>
 </resources>

@@ -1,4 +1,4 @@
-// File: app/src/main/java/lv/mariozo/homeogo/logic/SettingsRepository.kt
+﻿// File: app/src/main/java/lv/mariozo/homeogo/logic/SettingsRepository.kt
 // Project: HomeoGO
 // Created: 17.okt.2025 - 11:25 (Europe/Riga)
 // ver. 1.2 (SPS-15: Fix companion object visibility)

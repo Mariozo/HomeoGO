@@ -1,13 +1,14 @@
 // File: app/build.gradle.kts
 // Project: HomeoGO
-// Created: 13.okt.2025 (Rīga)
-// ver. 2.0 (FIX - Add material-icons-extended dependency)
+// Created: 15.okt.2025 (Rīga)
+// ver. 2.6 (FIX - Align Compose Compiler with Kotlin version)
 
 import java.util.Properties
 
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
@@ -23,6 +24,9 @@ android {
         (props.getProperty("AZURE_SPEECH_KEY") ?: System.getenv("AZURE_SPEECH_KEY")).orEmpty()
     val azureRegion =
         (props.getProperty("AZURE_SPEECH_REGION") ?: System.getenv("AZURE_SPEECH_REGION")).orEmpty()
+    val geminiKey =
+        (props.getProperty("GEMINI_API_KEY") ?: System.getenv("GEMINI_API_KEY")).orEmpty()
+
     if (azureKey.isBlank() || azureRegion.isBlank()) {
         logger.warn("⚠️ Azure Speech atslēgas nav atrastas (AZURE_SPEECH_KEY / AZURE_SPEECH_REGION). STT/TTS neautentificēsies.")
     }
@@ -37,6 +41,7 @@ android {
         // Provide keys via BuildConfig (read from local.properties/ENV)
         buildConfigField("String", "AZURE_SPEECH_KEY", "\"$azureKey\"")
         buildConfigField("String", "AZURE_SPEECH_REGION", "\"$azureRegion\"")
+        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiKey\"")
 
         // STT valoda (default: latviešu). Vajadzības gadījumā vari nomainīt uz "en-US".
         buildConfigField("String", "STT_LANGUAGE", "\"lv-LV\"")
@@ -63,6 +68,11 @@ android {
 
     }
 
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -76,13 +86,8 @@ android {
         }
     }
 
-    buildFeatures {
-        compose = true
-        buildConfig = true
-    }
-
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.13" // paired with Kotlin 1.9.23
+        kotlinCompilerExtensionVersion = "1.5.13"
     }
 
     kotlinOptions {
@@ -116,27 +121,31 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-    implementation("androidx.compose.material:material-icons-extended") // <-- PIEVIENOTS, lai atrisinātu visas ikonu problēmas
+    // SPS-37: FIX - Replaced unresolved 'libs' reference
+    implementation("androidx.compose.material:material-icons-extended:1.6.8")
 
     // Lifecycle ⇄ Compose bridges
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
     // DataStore (for settings)
+    // SPS-37: FIX - Replaced unresolved 'libs' reference
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
     // XML themes
-    implementation(libs.material)
+    implementation("com.google.android.material:material:1.11.0")
     implementation(libs.androidx.appcompat)
 
     // Azure Speech SDK (STT + TTS)
-    implementation(libs.androidx.azure.speech)
+    // FIX - Replaced unresolved 'libs' reference
+    implementation("com.microsoft.cognitiveservices.speech:client-sdk:1.39.0")
 
     // Compose Preview fix
     implementation(libs.androidx.customview.poolingcontainer)
 
     // Core library desugaring
-    coreLibraryDesugaring(libs.desugar.jdk.libs)
+    // FIX - Replaced unresolved 'libs' reference
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 
     // Debug tooling
     debugImplementation(libs.androidx.compose.ui.tooling)
@@ -149,3 +158,4 @@ dependencies {
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.espresso.core)
 }
+

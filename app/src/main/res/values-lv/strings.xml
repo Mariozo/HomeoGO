@@ -1,0 +1,42 @@
+<!-- File: app/src/main/res/values-lv/strings.xml -->
+<!-- Project: HomeoGO -->
+<!-- Created: 18.okt.2025 - 14:15 (Europe/Riga) -->
+<!-- ver. 1.3 (SPS-43: Add missing UI strings) -->
+<resources>
+    <string name="app_name">HomeoGO</string>
+    <string name="main_stt_auth_warning">⚠️ Azure Speech atslēgas nav atrastas. STT/TTS neautentificēsies.</string>
+
+    <!-- ElzaViewModel Status Strings -->
+    <string name="status_ready">Gatavs</string>
+    <string name="status_listening">Klausos…</string>
+    <string name="status_hearing">Dzird: %1$s</string>
+    <string name="status_processing">Apstrādā…</string>
+    <string name="status_thinking">Domā…</string>
+    <string name="status_speaking">Runā…</string>
+    <string name="status_interrupted">Pārtraukts</string>
+    <string name="status_stopped">Apturēts</string>
+    <string name="status_mic_permission_needed">Vajag mikrofona atļauju!</string>
+    <string name="status_stt_error">STT Kļūda: %1$s</string>
+    <string name="status_tts_error">TTS Kļūda</string>
+    <string name="status_ai_error">AI kļūda</string>
+    <string name="status_no_network">Nevaru atbildēt – nav tīkla savienojuma.</string>
+    <string name="status_backend_http_error">Neizdevās saņemt atbildi (HTTP %1$d).</string>
+    <string name="status_backend_connection_error">Neizdevās sazināties ar Elzas serveri.</string>
+
+    <!-- SPS-43: ElzaScreen UI Strings -->
+    <string name="elza_input_placeholder">Jautājums Elzai…</string>
+    <string name="elza_send_button_description">Sūtīt tekstu</string>
+    <string name="elza_speak_button_description">Runāt ar Elzu</string>
+    <string name="elza_mute_button_description">Izslēgt skaņu</string>
+    <string name="elza_mode_voice">Balss</string>
+    <string name="elza_mode_text">Teksts</string>
+    <string name="elza_mode_hybrid">Hibrīds</string>
+    <string name="elza_mode_settings">Iestatījumi</string>
+    <string name="elza_listening_status">Klausos...</string>
+    <string name="elza_processing_status">Apstrādā...</string>
+    <string name="elza_thinking_status">Domā...</string>
+    <string name="elza_replying_status">Runā...</string>
+    <string name="elza_muted_status">Skaņa izslēgta</string>
+    <string name="elza_error_status">Kļūda</string>
+    <string name="elza_permission_denied_status">Vajag mikrofona atļauju!</string>
+</resources>

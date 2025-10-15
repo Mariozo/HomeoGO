@@ -1,4 +1,4 @@
-//
+﻿//
 // ============================================================================
 // File: app/src/main/java/lv/lv.mariozo.homeogo.ui.state/ElzaSettings.kt
 // Module: HomeoGO

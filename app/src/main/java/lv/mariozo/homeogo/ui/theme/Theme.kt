@@ -1,4 +1,4 @@
-// # --- 1 ------ Header ----------------------------------------------------
+﻿// # --- 1 ------ Header ----------------------------------------------------
 // File: ui/theme/Theme.kt
 // Module: HomeoGO
 // Purpose: Central Compose theme (colors/typography/shapes) + dynamic color support

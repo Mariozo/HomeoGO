@@ -1,11 +1,14 @@
-// File: app/src/main/java/lv/mariozo/homeogo/ui/SettingsScreen.kt
+﻿// File: app/src/main/java/lv/mariozo/homeogo/ui/SettingsScreen.kt
 // Project: HomeoGO
-// Created: 17.okt.2025 - 10:55 (Europe/Riga)
-// ver. 1.6 (SPS-11: Fix final unresolved reference)
+// Created: 14.okt.2025 - 20:30
+// ver. 1.8 (SPS-32: Add Compose Preview for SettingsScreen)
 // Purpose: Settings screen UI (Compose)
 // Author: Gemini Agent (Burtnieks & Elza Assistant)
 // Comments:
-//  - Renamed `setBargeIn` to `setEnableBargeIn` to match the ViewModel method.
+//  - Added a @Preview Composable to enable the Design view in Android Studio.
+//  - Refactored to use a stateless `SettingsScreenContent` composable.
+//  - The stateful `SettingsScreen` wrapper now collects state and passes it down.
+//  - The @Preview now calls the stateless content function with sample data, fixing the render error.
 
 package lv.mariozo.homeogo.ui
 
@@ -34,19 +37,49 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import lv.mariozo.homeogo.ui.SettingsViewModel
+import lv.mariozo.homeogo.logic.SettingsRepository
+import lv.mariozo.homeogo.ui.theme.HomeoGOTheme
 
-@OptIn(ExperimentalMaterial3Api::class) // Suppress warnings for Scaffold, TopAppBar, Slider etc.
+// #1. ---- Stateful Wrapper Composable ---------------------------------------------
 @Composable
 fun SettingsScreen(
     vm: SettingsViewModel,
     onClose: () -> Unit,
 ) {
-    val s = vm.ui.collectAsState().value
+    val state by vm.ui.collectAsState()
 
+    SettingsScreenContent(
+        state = state,
+        onClose = onClose,
+        onSetDarkTheme = vm::setDarkTheme,
+        onSetVadSensitivity = vm::setVadSensitivity,
+        onSetEndpointMs = { vm.setEndpointMs(it.toInt()) },
+        onSetInputGainDb = { vm.setInputGainDb(it.toInt()) },
+        onSetVoice = vm::setVoice,
+        onSetRate = vm::setRate,
+        onSetPitch = vm::setPitch
+    )
+}
+
+// #2. ---- Stateless UI Composable ------------------------------------------------
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsScreenContent(
+    state: SettingsRepository.UiSnapshot,
+    onClose: () -> Unit,
+    onSetDarkTheme: (Boolean) -> Unit,
+    onSetVadSensitivity: (Float) -> Unit,
+    onSetEndpointMs: (Float) -> Unit,
+    onSetInputGainDb: (Float) -> Unit,
+    onSetVoice: (String) -> Unit,
+    onSetRate: (Float) -> Unit,
+    onSetPitch: (Float) -> Unit,
+) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -71,7 +104,7 @@ fun SettingsScreen(
             SettingRow(
                 title = "Tumšais / gaišais režīms",
             ) {
-                Switch(checked = s.darkTheme, onCheckedChange = vm::setDarkTheme)
+                Switch(checked = state.darkTheme, onCheckedChange = onSetDarkTheme)
             }
 
             HorizontalDivider()
@@ -79,23 +112,23 @@ fun SettingsScreen(
             SectionTitle("STT (runas atpazīšana)")
             SliderRow(
                 title = "Jutība (VAD)",
-                value = s.sttVadSensitivity,
-                valueText = "%.2f".format(s.sttVadSensitivity),
-                onChange = vm::setVadSensitivity,
+                value = state.sttVadSensitivity,
+                valueText = "%.2f".format(state.sttVadSensitivity),
+                onChange = onSetVadSensitivity,
                 range = 0f..1f
             )
             SliderRow(
                 title = "Beigu klusums (ms)",
-                value = s.sttEndpointMs.toFloat(),
-                valueText = "${s.sttEndpointMs} ms",
-                onChange = { vm.setEndpointMs(it.toInt()) },
+                value = state.sttEndpointMs.toFloat(),
+                valueText = "${state.sttEndpointMs} ms",
+                onChange = onSetEndpointMs,
                 range = 300f..5000f
             )
             SliderRow(
                 title = "Ievades pastiprinājums (dB)",
-                value = s.sttInputGainDb.toFloat(),
-                valueText = "${s.sttInputGainDb} dB",
-                onChange = { vm.setInputGainDb(it.toInt()) },
+                value = state.sttInputGainDb.toFloat(),
+                valueText = "${state.sttInputGainDb} dB",
+                onChange = onSetInputGainDb,
                 range = -20f..20f
             )
 
@@ -103,8 +136,8 @@ fun SettingsScreen(
 
             SectionTitle("TTS (Elzas balss)")
             VoicePicker(
-                current = s.ttsVoiceId,
-                onPick = vm::setVoice,
+                current = state.ttsVoiceId,
+                onPick = onSetVoice,
                 options = listOf(
                     "lv-LV-EveritaNeural",
                     "lv-LV-NilsNeural",
@@ -114,19 +147,20 @@ fun SettingsScreen(
             )
             SliderRow(
                 title = "Ātrums",
-                value = s.ttsRate,
-                valueText = "%.2f×".format(s.ttsRate),
-                onChange = vm::setRate,
+                value = state.ttsRate,
+                valueText = "%.2f×".format(state.ttsRate),
+                onChange = onSetRate,
                 range = 0.5f..1.5f
             )
             SliderRow(
                 title = "Augstums (semitoni)",
-                value = s.ttsPitch,
-                valueText = "%.1f".format(s.ttsPitch),
-                onChange = vm::setPitch,
+                value = state.ttsPitch,
+                valueText = "%.1f".format(state.ttsPitch),
+                onChange = onSetPitch,
                 range = -6f..6f
             )
 
+            /* // SPS-29: Commented out as requested.
             HorizontalDivider()
 
             SectionTitle("Uzvedība")
@@ -134,19 +168,23 @@ fun SettingsScreen(
                 title = "Pārtraukt ar balsi",
                 subtitle = "STT klausās arī Elzas runas laikā",
             ) {
-                Switch(checked = s.enableBargeIn, onCheckedChange = vm::setEnableBargeIn)
+                Switch(checked = state.enableBargeIn, onCheckedChange = vm::setEnableBargeIn)
             }
             SettingRow(
                 title = "Klusais režīms pēc noklusējuma",
                 subtitle = "Elza atbild tikai tekstā (TTS izslēgts)",
             ) {
-                Switch(checked = s.defaultMuteMode, onCheckedChange = vm::setDefaultMute)
+                Switch(checked = state.defaultMuteMode, onCheckedChange = vm::setDefaultMute)
             }
+            */
 
             Spacer(Modifier.height(24.dp))
         }
     }
 }
+
+
+// #3. ---- UI Sub-components -----------------------------------------------------
 
 @Composable
 private fun SectionTitle(text: String) {
@@ -213,5 +251,33 @@ private fun VoicePicker(current: String, onPick: (String) -> Unit, options: List
                 modifier = Modifier.padding(top = 6.dp)
             )
         }
+    }
+}
+
+// #4. ---- Preview ----------------------------------------------------------------
+
+@Preview(showBackground = true, name = "SettingsScreen Preview")
+@Composable
+private fun PreviewSettingsScreen() {
+    HomeoGOTheme {
+        SettingsScreenContent(
+            state = SettingsRepository.UiSnapshot(
+                darkTheme = true,
+                sttVadSensitivity = 0.6f,
+                sttEndpointMs = 1200,
+                sttInputGainDb = -2,
+                ttsVoiceId = "lv-LV-EveritaNeural",
+                ttsRate = 1.1f,
+                ttsPitch = -1.0f
+            ),
+            onClose = {},
+            onSetDarkTheme = {},
+            onSetVadSensitivity = {},
+            onSetEndpointMs = {},
+            onSetInputGainDb = {},
+            onSetVoice = {},
+            onSetRate = {},
+            onSetPitch = {}
+        )
     }
 }

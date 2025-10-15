@@ -1,4 +1,4 @@
-package lv.mariozo.homeogo
+﻿package lv.mariozo.homeogo
 
 import org.junit.Test
 

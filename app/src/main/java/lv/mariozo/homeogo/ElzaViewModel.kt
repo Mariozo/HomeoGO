@@ -1,13 +1,11 @@
-// File: app/src/main/java/lv/mariozo/homeogo/ui/ElzaViewModel.kt
+﻿// File: app/src/main/java/lv/mariozo/homeogo/ElzaViewModel.kt
 // Project: HomeoGO
-// Created: 14.okt.2025 (Rīga)
-// ver. 5.4 (FEAT - Add setInteractionMode to handle drawer selections)
-// Purpose: ViewModel for ElzaScreen, implementing a robust state machine for voice interaction.
-// Comments:
-//  - Added `setInteractionMode` public function to allow the UI to change the app's mode.
-//  - This function stops all current activity (TTS/STT) before switching the mode.
+// Created: 15.okt.2025 - 11:30 (Europe/Riga)
+// ver. 6.1 (SPS-38: Internationalized all status strings)
+// Purpose: ViewModel for ElzaScreen, using string resources for all user-facing text.
+// Author: Gemini Agent (Burtnieks & Elza Assistant)
 
-package lv.mariozo.homeogo.ui
+package lv.mariozo.homeogo
 
 import android.app.Application
 import android.content.Context
@@ -21,273 +19,212 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import lv.mariozo.homeogo.BuildConfig
-import lv.mariozo.homeogo.logic.ElzaLogicManager
+import lv.mariozo.homeogo.ui.ChatMessage
+import lv.mariozo.homeogo.ui.ElzaScreenState
+import lv.mariozo.homeogo.ui.InteractionMode
+import lv.mariozo.homeogo.ui.Sender
 import lv.mariozo.homeogo.voice.SpeechRecognizerManager
 import lv.mariozo.homeogo.voice.TtsManager
 import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
 
-// #1. ---- ViewModel ------------------------------------------------------------
+class ElzaViewModel(app: Application) : AndroidViewModel(app) {
 
-class ElzaViewModel(application: Application) : AndroidViewModel(application) {
+    // STT / TTS
+    private val sttManager = SpeechRecognizerManager(
+        context = app,
+        speechKey = BuildConfig.AZURE_SPEECH_KEY,
+        speechRegion = BuildConfig.AZURE_SPEECH_REGION,
+        language = BuildConfig.STT_LANGUAGE
+    )
+    private val ttsManager = TtsManager(
+        speechKey = BuildConfig.AZURE_SPEECH_KEY,
+        speechRegion = BuildConfig.AZURE_SPEECH_REGION,
+        voiceName = "lv-LV-EveritaNeural"
+    )
 
-    private val _uiState = MutableStateFlow(ElzaScreenState())
+    // UI State
+    private val _uiState = MutableStateFlow(
+        ElzaScreenState(
+            status = app.getString(R.string.status_ready),
+            isListening = false,
+            messages = emptyList(),
+            speakingMessage = null
+        )
+    )
     val uiState: StateFlow<ElzaScreenState> = _uiState
 
-    private val sttManager: SpeechRecognizerManager
-    private val ttsManager: TtsManager
-    private val logic: ElzaLogicManager
-
-    private var enableBargeIn = true
-    private var nextId = 1L
-
-    init {
-        sttManager = SpeechRecognizerManager(
-            context = application.applicationContext,
-            speechKey = BuildConfig.AZURE_SPEECH_KEY,
-            speechRegion = BuildConfig.AZURE_SPEECH_REGION,
-            language = BuildConfig.STT_LANGUAGE
-        )
-        ttsManager = TtsManager(
-            speechKey = BuildConfig.AZURE_SPEECH_KEY,
-            speechRegion = BuildConfig.AZURE_SPEECH_REGION
-        )
-        logic = ElzaLogicManager(
-            ai = { userText, locale -> backendReply(userText, locale) },
-            isOnline = { isNetworkAvailable(getApplication()) },
-            defaultLocale = BuildConfig.STT_LANGUAGE
-        )
-    }
-
-    // --- 2.1. Public Actions from UI ---
-
+    // Vienkāršais režīms: TEXT (tikai burbulis) / VOICE (burbulis + TTS)
     fun setInteractionMode(mode: InteractionMode) {
-        // Stop any ongoing activity before switching modes.
-        stopAllActivity(restartListening = false, becauseOfInterrupt = false)
         _uiState.update { it.copy(interactionMode = mode) }
-        // Here you might add logic to navigate to a different screen for SETTINGS
     }
 
-    fun startListening(isBargeInSetup: Boolean = false) {
+    fun onPermissionDenied() {
+        _uiState.update { it.copy(status = getString(R.string.status_mic_permission_needed)) }
+    }
+
+    // STT control
+    fun startListening() {
         if (_uiState.value.isListening) return
 
-        if (!isBargeInSetup && _uiState.value.speakingMessage != null) {
-            stopAllActivity(restartListening = true, becauseOfInterrupt = true)
-            return
-        }
+        stopSpeaking() // drošībai
+        _uiState.update { it.copy(status = getString(R.string.status_listening), isListening = true) }
 
-        _uiState.update { it.copy(status = "Klausos...", isListening = true) }
         sttManager.startListening(object : SpeechRecognizerManager.Callbacks {
-            override fun onFinal(text: String) = handleRecognition(text)
             override fun onPartial(text: String) {
-                _uiState.update { it.copy(status = "Dzird: $text") }
+                if (text.isNotBlank()) {
+                    _uiState.update { it.copy(status = getString(R.string.status_hearing, text)) }
+                }
             }
+
+            override fun onFinal(text: String) {
+                if (!_uiState.value.isListening) return
+
+                if (text.isBlank()) {
+                    _uiState.update { it.copy(status = getString(R.string.status_listening)) }
+                    return 
+                }
+                
+                stopListening()
+                appendMessage(Sender.USER, text)
+                processInput(text)
+            }
+
             override fun onStatus(status: String) {
                 _uiState.update { it.copy(status = status) }
             }
+
             override fun onError(messageLv: String) {
-                _uiState.update { it.copy(status = "STT Kļūda: $messageLv", isListening = false) }
+                _uiState.update { it.copy(status = getString(R.string.status_stt_error, messageLv), isListening = false) }
             }
         })
     }
 
     fun stopListening() {
-        stopAllActivity(restartListening = false, becauseOfInterrupt = false)
+        sttManager.stopListening()
+        _uiState.update { it.copy(isListening = false) }
     }
 
-    fun toggleMuteMode() {
-        _uiState.update { it.copy(isMuted = !it.isMuted) }
+    fun stopSpeaking() {
+        ttsManager.stop()
         if (_uiState.value.speakingMessage != null) {
-            ttsManager.stop()
-            _uiState.update { it.copy(speakingMessage = null, currentlySpokenText = null) }
-            startListening()
+            _uiState.update { it.copy(speakingMessage = null) }
         }
     }
 
-    fun onPermissionDenied() {
-        _uiState.update { it.copy(status = "Vajag mikrofona atļauju!", isListening = false) }
-    }
-
-    // --- 2.2. Internal Logic ---
-
-    private fun handleRecognition(recognizedText: String) {
-        if (recognizedText.isBlank()) {
-            if (_uiState.value.speakingMessage == null) startListening()
+    // User text → backend → reply → speak if VOICE
+    private fun processInput(userText: String) {
+        if (!isNetworkAvailable(getApplication())) {
+            appendMessage(Sender.ELZA, getString(R.string.status_no_network))
             return
         }
 
-        val isBargeIn = _uiState.value.speakingMessage != null
+        showSpeakingBubble()
 
-        if (isBargeIn) {
-            val spokenText = _uiState.value.currentlySpokenText ?: ""
-            fun String.normalize() = this.lowercase().filter { it.isLetterOrDigit() }
-            val normalizedSpoken = spokenText.normalize()
-            val normalizedRecognized = recognizedText.normalize()
+        viewModelScope.launch(Dispatchers.IO) {
+            val reply = backendReply(userText, lang = "lv")
+            launch(Dispatchers.Main) {
+                replaceSpeakingWithFinal(reply.ifBlank { "…" })
 
-            if (normalizedRecognized.isNotEmpty() && normalizedSpoken.contains(normalizedRecognized)) {
-                Log.d("HomeoGO-Echo", "Ignored echo: '$recognizedText'")
-                startListening(isBargeInSetup = true)
-                return
-            }
-        }
-
-        sttManager.stopListening()
-        _uiState.update { it.copy(isListening = false, status = "Apstrādā...") }
-
-        if (isBargeIn) {
-            ttsManager.stop()
-            _uiState.update { it.copy(speakingMessage = null, currentlySpokenText = null) }
-        }
-
-        appendMessage(Sender.USER, recognizedText)
-        processInput(recognizedText)
-    }
-
-    private fun processInput(text: String) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(status = "Domā…") }
-
-            val tempMsg = ChatMessage(id = nextId++, from = Sender.ELZA, text = "...", isSpeaking = true)
-            _uiState.update { it.copy(speakingMessage = tempMsg) }
-
-            val reply = logic.replyTo(text, locale = BuildConfig.STT_LANGUAGE)
-
-            if (reply.text.isBlank()) {
-                _uiState.update { it.copy(status = "AI kļūda", speakingMessage = null) }
-                startListening()
-                return@launch
-            }
-
-            val shouldUseVoice =
-                _uiState.value.interactionMode == InteractionMode.VOICE && !_uiState.value.isMuted
-
-            if (shouldUseVoice) {
-                if (enableBargeIn) {
-                    startListening(isBargeInSetup = true)
-                }
-                speak(reply.text, tempMsg.id)
-            } else {
-                replaceTempBubbleWithFinal(reply.text, tempMsg.id)
-                startListening()
+                val speakAllowed = _uiState.value.interactionMode == InteractionMode.VOICE
+                if (speakAllowed) speak(reply)
+                else _uiState.update { it.copy(status = getString(R.string.status_ready)) } // TEXT režīms — paliekam gaidīšanas stāvoklī
             }
         }
     }
 
-    private fun speak(fullText: String, tempMsgId: Long) {
-        _uiState.update { it.copy(status = "Runā…", currentlySpokenText = fullText) }
-
-        ttsManager.speak(fullText) { success ->
-            val wasInterrupted = _uiState.value.speakingMessage?.id != tempMsgId
-            if (wasInterrupted) return@speak
-
-            if (success) {
-                replaceTempBubbleWithFinal(fullText, tempMsgId)
-            } else {
-                _uiState.update { it.copy(speakingMessage = null, currentlySpokenText = null, status = "TTS Kļūda") }
-            }
-
-            if (!enableBargeIn) {
-                startListening()
-            }
+    private fun speak(fullText: String) {
+        _uiState.update { it.copy(status = getString(R.string.status_speaking)) }
+        ttsManager.speak(fullText) {
+            _uiState.update { it.copy(status = getString(R.string.status_ready)) }
         }
     }
 
-    // --- 2.3. State & Message Helpers ---
-
-    private fun stopAllActivity(restartListening: Boolean, becauseOfInterrupt: Boolean) {
-        sttManager.stopListening()
-        ttsManager.stop()
-
-        _uiState.update {
-            it.copy(
-                isListening = false,
-                speakingMessage = null,
-                currentlySpokenText = null,
-                status = if (becauseOfInterrupt) "Pārtraukts" else "Apturēts"
-            )
-        }
-
-        if (restartListening) {
-            viewModelScope.launch {
-                kotlinx.coroutines.delay(100) // Debounce delay
-                startListening()
-            }
-        }
-    }
-
-    private fun replaceTempBubbleWithFinal(text: String, tempMsgId: Long) {
-        _uiState.update { state ->
-            if (state.speakingMessage?.id != tempMsgId) return@update state // Already interrupted
-            val finalMessage = state.speakingMessage.copy(text = text, isSpeaking = false)
-            state.copy(
-                messages = state.messages + finalMessage,
-                speakingMessage = null,
-                currentlySpokenText = null
-            )
-        }
-    }
-
+    // UI helperi
     private fun appendMessage(from: Sender, text: String) {
-        val msg = ChatMessage(id = nextId++, from = from, text = text)
-        _uiState.update { it.copy(messages = it.messages + msg) }
+        _uiState.update { st ->
+            st.copy(messages = st.messages + ChatMessage(System.nanoTime(), from, text))
+        }
     }
 
-    // --- 2.4. Boilerplate ---
+    private fun showSpeakingBubble() {
+        _uiState.update { st ->
+            st.copy(
+                speakingMessage = ChatMessage(
+                    id = System.nanoTime(),
+                    from = Sender.ELZA,
+                    text = "...",
+                    isSpeaking = true
+                )
+            )
+        }
+    }
+
+    private fun replaceSpeakingWithFinal(finalText: String) {
+        _uiState.update { st ->
+            st.copy(
+                speakingMessage = null,
+                messages = st.messages + ChatMessage(System.nanoTime(), Sender.ELZA, finalText)
+            )
+        }
+    }
+
+    // Backend
+    private fun backendReply(prompt: String, lang: String): String {
+        return runCatching {
+            val base = BuildConfig.ELZA_API_BASE.trimEnd('/')
+            val path = BuildConfig.ELZA_API_PATH.ifBlank { "/elza/reply" }
+            val url = URL("$base$path")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 10_000
+                readTimeout = 30_000
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                val tok = BuildConfig.ELZA_API_TOKEN
+                if (tok.isNotBlank()) setRequestProperty("Authorization", "Bearer $tok")
+            }
+            val payload = JSONObject().put("prompt", prompt).put("lang", lang).toString()
+            OutputStreamWriter(conn.outputStream, StandardCharsets.UTF_8).use { it.write(payload) }
+            val code = conn.responseCode
+            val body = (if (code in 200..299) conn.inputStream else conn.errorStream)
+                ?.bufferedReader()?.use(BufferedReader::readText).orEmpty()
+            conn.disconnect()
+            if (code !in 200..299) {
+                Log.e("HomeoGO-API", "HTTP $code: $body")
+                return@runCatching getString(R.string.status_backend_http_error, code)
+            }
+            val trimmed = body.trim()
+            if (trimmed.startsWith("{")) JSONObject(trimmed).optString(
+                "reply",
+                trimmed
+            ) else trimmed
+        }.getOrElse { e ->
+            Log.e("HomeoGO-API", "backendReply exception", e)
+            getString(R.string.status_backend_connection_error)
+        }
+    }
+    
+    // Helper to get string resources
+    private fun getString(resId: Int, vararg formatArgs: Any): String {
+        return getApplication<Application>().getString(resId, *formatArgs)
+    }
+
+    // Network
+    private fun isNetworkAvailable(ctx: Context): Boolean {
+        val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val n = cm.activeNetwork ?: return false
+        val caps = cm.getNetworkCapabilities(n) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
 
     override fun onCleared() {
         super.onCleared()
-        sttManager.release()
-        ttsManager.release()
-    }
-
-    private suspend fun backendReply(userText: String, locale: String): String =
-        withContext(Dispatchers.IO) {
-            val url = URL(BuildConfig.ELZA_API_BASE.trimEnd('/') + BuildConfig.ELZA_API_PATH)
-            (url.openConnection() as HttpURLConnection).run {
-                try {
-                    requestMethod = "POST"
-                    doOutput = true
-                    connectTimeout = 20_000
-                    readTimeout = 20_000
-                    setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                    if (BuildConfig.ELZA_API_TOKEN.isNotBlank()) {
-                        setRequestProperty("Authorization", "Bearer ${BuildConfig.ELZA_API_TOKEN}")
-                    }
-
-                    val payload = JSONObject().put("prompt", userText).put("lang", locale).toString()
-                    outputStream.use { it.write(payload.toByteArray(StandardCharsets.UTF_8)) }
-
-                    val responseCode = responseCode
-                    val responseStream = if (responseCode in 200..299) inputStream else errorStream
-                    val rawResponse = responseStream.bufferedReader().use { it.readText() }.trim()
-
-                    if (responseCode !in 200..299) {
-                        Log.e("HomeoGO-AI", "Backend Error ($responseCode): $rawResponse")
-                        return@withContext ""
-                    }
-
-                    JSONObject(rawResponse).optString("reply", "").trim()
-                } catch (e: Exception) {
-                    Log.e("HomeoGO-AI", "Backend connection failed", e)
-                    ""
-                } finally {
-                    disconnect()
-                }
-            }
-        }
-
-    private fun isNetworkAvailable(ctx: Context): Boolean {
-        val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        return cm.activeNetwork?.let {
-            cm.getNetworkCapabilities(it)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-        } ?: false
-    }
-
-    fun setBargeInEnabled(enabled: Boolean) {
-        enableBargeIn = enabled
+        ttsManager.stop()
+        sttManager.stopListening()
     }
 }

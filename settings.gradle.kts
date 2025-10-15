@@ -1,12 +1,11 @@
+// File: settings.gradle.kts
+// Project: HomeoGO
+// Created: 15.okt.2025 (Rīga)
+// ver. 1.1 (FIX - Added plugin repositories)
+
 pluginManagement {
     repositories {
-        google {
-            content {
-                includeGroupByRegex("com\\.android.*")
-                includeGroupByRegex("com\\.google.*")
-                includeGroupByRegex("androidx.*")
-            }
-        }
+        google()
         mavenCentral()
         gradlePluginPortal()
     }

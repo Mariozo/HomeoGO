@@ -1,4 +1,4 @@
-// ============================================================================
+﻿// ============================================================================
 // File: app/src/main/java/lv/mariozo/homeogo/voice/tts/system/SystemTtsEngine.kt
 // Module: HomeoGO
 // Purpose: Android built-in TextToSpeech engine wrapper (Refactored)

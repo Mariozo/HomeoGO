@@ -1,1 +1,4 @@
 ﻿* text=auto
+*.kt text eol=lf working-tree-encoding=UTF-8
+*.xml text eol=lf working-tree-encoding=UTF-8
+

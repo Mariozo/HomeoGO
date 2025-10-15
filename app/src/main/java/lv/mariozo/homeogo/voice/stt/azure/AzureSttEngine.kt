@@ -1,4 +1,4 @@
-package lv.mariozo.homeogo.voice.stt.azure
+﻿package lv.mariozo.homeogo.voice.stt.azure
 
 import android.content.Context
 import com.microsoft.cognitiveservices.speech.SpeechConfig

@@ -1,4 +1,4 @@
-// File: app/src/main/java/lv/mariozo/homeogo/voice/SpeechRecognizerManager.kt
+﻿// File: app/src/main/java/lv/mariozo/homeogo/voice/SpeechRecognizerManager.kt
 // Project: HomeoGO
 // Created: 03.okt.2025 13:45 (Rīga)
 // ver. 1.3

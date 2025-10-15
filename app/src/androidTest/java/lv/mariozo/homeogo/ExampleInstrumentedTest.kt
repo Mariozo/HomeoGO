@@ -1,4 +1,4 @@
-package lv.mariozo.homeogo
+﻿package lv.mariozo.homeogo
 
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4

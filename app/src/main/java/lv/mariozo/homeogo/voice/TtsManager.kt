@@ -1,4 +1,4 @@
-// File: app/src/main/java/lv/mariozo/homeogo/voice/TtsManager.kt
+﻿// File: app/src/main/java/lv/mariozo/homeogo/voice/TtsManager.kt
 // Project: HomeoGO
 // Created: 03.okt.2025 11:50 (Rīga)
 // ver. 1.5

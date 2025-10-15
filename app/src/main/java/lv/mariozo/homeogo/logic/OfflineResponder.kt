@@ -1,4 +1,4 @@
-// File: app/src/main/java/lv/mariozo/homeogo/logic/OfflineResponder.kt
+﻿// File: app/src/main/java/lv/mariozo/homeogo/logic/OfflineResponder.kt
 // Project: HomeoGO
 // Created: 04.okt.2025 13:10 (Rīga)
 // ver. 1.0

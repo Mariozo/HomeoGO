@@ -1,4 +1,4 @@
-package lv.mariozo.homeogo.ui.theme
+﻿package lv.mariozo.homeogo.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

@@ -1,4 +1,4 @@
-// ============================================================================
+﻿// ============================================================================
 // File: app/src/main/java/lv/mariozo/homeogo/voice/tts/azure/AzureTtsEngine.kt
 // Module: HomeoGO  (fixed speakTextAsync + result.reason)
 // Created: 28.sep.2025 10:45

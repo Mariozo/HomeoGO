@@ -1,4 +1,4 @@
-// File: app/src/main/java/lv/mariozo/homeogo/logic/ElzaLogicManager.kt
+﻿// File: app/src/main/java/lv/mariozo/homeogo/logic/ElzaLogicManager.kt
 // Project: HomeoGO
 // Created: 04.okt.2025 13:40 (Rīga)
 // ver. 1.8

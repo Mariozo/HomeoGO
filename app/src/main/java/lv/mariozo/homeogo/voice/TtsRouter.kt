@@ -1,4 +1,4 @@
-// ============================================================================
+﻿// ============================================================================
 // File: app/src/main/java/lv/mariozo/homeogo/voice/TtsRouter.kt
 // Module: HomeoGO
 // Purpose: TTS router to pick active engine (System/Azure/etc.)

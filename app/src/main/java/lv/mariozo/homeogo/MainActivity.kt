@@ -1,11 +1,14 @@
+﻿// File: app/src/main/java/lv/mariozo/homeogo/MainActivity.kt
+// Project: HomeoGO
+// Created: 13.okt.2025 - 21:00 (Europe/Riga)
+// ver. 5.0 — Simplified: no auto-listen, only mode sync; mic permission gate
+// Purpose: Host Activity, wired up to the final ViewModel.
+
 // File: app/src/main/java/lv/mariozo/homeogo/MainActivity.kt
 // Project: HomeoGO
-// Created: 17.okt.2025 - 11:15 (Europe/Riga)
-// ver. 4.6 (SPS-14: Fix incomplete import path)
+// Created: 18.okt.2025 - 13:15 (Europe/Riga)
+// ver. 4.5 (i18n - Migrated hardcoded warning string to strings.xml)
 // Purpose: Host Activity, wired up to the final ViewModel.
-// Author: Gemini Agent (Burtnieks & Elza Assistant)
-// Comments:
-//  - Corrected the incomplete import for SettingsRepository.
 
 package lv.mariozo.homeogo
 
@@ -17,7 +20,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,7 +27,6 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import lv.mariozo.homeogo.logic.SettingsRepository
 import lv.mariozo.homeogo.ui.ElzaScreen
 import lv.mariozo.homeogo.ui.ElzaViewModel
 import lv.mariozo.homeogo.ui.InteractionMode
@@ -38,13 +39,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Using applicationContext to get the string outside of a Composable context
+        val sttWarning = applicationContext.getString(R.string.main_stt_auth_warning)
+        logger.warn(sttWarning)
+
         setContent {
             val vm: ElzaViewModel = viewModel()
             val state by vm.uiState.collectAsStateWithLifecycle()
 
             val settingsVM: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory)
-            // Use collectAsState and explicitly import the type to fix inference
-            val settings: SettingsRepository.UiSnapshot by settingsVM.ui.collectAsState()
+            val settings by settingsVM.ui.collectAsStateWithLifecycle(initialValue = settingsVM.ui.value)
 
             LaunchedEffect(settings.enableBargeIn) {
                 vm.setBargeInEnabled(settings.enableBargeIn)
@@ -58,6 +62,7 @@ class MainActivity : ComponentActivity() {
                     if (granted) vm.startListening() else vm.onPermissionDenied()
                 }
             )
+
             val requestMicThenStart = {
                 val granted = ContextCompat.checkSelfPermission(
                     this@MainActivity,
@@ -90,3 +95,4 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
