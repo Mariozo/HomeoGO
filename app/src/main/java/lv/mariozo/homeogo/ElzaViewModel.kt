@@ -11,7 +11,6 @@ import android.app.Application
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +30,7 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
+import android.util.Log as ALog
 
 class ElzaViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -72,7 +72,12 @@ class ElzaViewModel(app: Application) : AndroidViewModel(app) {
         if (_uiState.value.isListening) return
 
         stopSpeaking() // drošībai
-        _uiState.update { it.copy(status = getString(R.string.status_listening), isListening = true) }
+        _uiState.update {
+            it.copy(
+                status = getString(R.string.status_listening),
+                isListening = true
+            )
+        }
 
         sttManager.startListening(object : SpeechRecognizerManager.Callbacks {
             override fun onPartial(text: String) {
@@ -86,9 +91,9 @@ class ElzaViewModel(app: Application) : AndroidViewModel(app) {
 
                 if (text.isBlank()) {
                     _uiState.update { it.copy(status = getString(R.string.status_listening)) }
-                    return 
+                    return
                 }
-                
+
                 stopListening()
                 appendMessage(Sender.USER, text)
                 processInput(text)
@@ -99,7 +104,12 @@ class ElzaViewModel(app: Application) : AndroidViewModel(app) {
             }
 
             override fun onError(messageLv: String) {
-                _uiState.update { it.copy(status = getString(R.string.status_stt_error, messageLv), isListening = false) }
+                _uiState.update {
+                    it.copy(
+                        status = getString(R.string.status_stt_error, messageLv),
+                        isListening = false
+                    )
+                }
             }
         })
     }
@@ -195,7 +205,7 @@ class ElzaViewModel(app: Application) : AndroidViewModel(app) {
                 ?.bufferedReader()?.use(BufferedReader::readText).orEmpty()
             conn.disconnect()
             if (code !in 200..299) {
-                Log.e("HomeoGO-API", "HTTP $code: $body")
+                ALog.e("HomeoGO-API", "HTTP $code: $body")
                 return@runCatching getString(R.string.status_backend_http_error, code)
             }
             val trimmed = body.trim()
@@ -204,11 +214,11 @@ class ElzaViewModel(app: Application) : AndroidViewModel(app) {
                 trimmed
             ) else trimmed
         }.getOrElse { e ->
-            Log.e("HomeoGO-API", "backendReply exception", e)
+            ALog.e("HomeoGO-API", "backendReply exception", e)
             getString(R.string.status_backend_connection_error)
         }
     }
-    
+
     // Helper to get string resources
     private fun getString(resId: Int, vararg formatArgs: Any): String {
         return getApplication<Application>().getString(resId, *formatArgs)

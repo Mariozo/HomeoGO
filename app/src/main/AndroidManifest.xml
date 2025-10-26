@@ -11,8 +11,7 @@
       - MainActivity ir LAUNCHER.
 -->
 
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="lv.mariozo.homeogo">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- Permissions required for Azure Speech SDK -->
     <uses-permission android:name="android.permission.INTERNET" />

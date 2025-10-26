@@ -15,6 +15,7 @@
 package lv.mariozo.homeogo.voice
 
 // 1. ---- Imports ---------------------------------------------------------------
+import lv.mariozo.homeogo.BuildConfig
 import android.content.Context
 import android.util.Log
 import com.microsoft.cognitiveservices.speech.CancellationDetails
@@ -29,8 +30,9 @@ import com.microsoft.cognitiveservices.speech.audio.AudioConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import lv.mariozo.homeogo.BuildConfig
+
 import java.util.concurrent.TimeUnit
+
 
 // 2. ---- Manager ---------------------------------------------------------------
 class SpeechRecognizerManager(
