@@ -1,9 +1,4 @@
 ﻿// File: app/src/main/java/lv/mariozo/homeogo/MainActivity.kt
-// Project: HomeoGO
-// Created: 13.okt.2025 - 21:00 (Europe/Riga)
-// ver. 5.0 — Simplified: no auto-listen, only mode sync; mic permission gate
-// Purpose: Host Activity, wired up to the final ViewModel.
-
 package lv.mariozo.homeogo
 
 import android.os.Bundle
@@ -12,7 +7,11 @@ import androidx.activity.compose.setContent
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
+import lv.mariozo.homeogo.ui.ChatMessage
 import lv.mariozo.homeogo.ui.ElzaScreen
+import lv.mariozo.homeogo.ui.ElzaScreenState
+import lv.mariozo.homeogo.ui.InteractionMode
+import lv.mariozo.homeogo.ui.viewmodel.ElzaViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -20,14 +19,23 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val vm: ElzaViewModel = viewModel()
-            val state by vm.uiState.collectAsState()
+            val ui by vm.ui.collectAsState()
+
+            // Adapteris: mūsu minimālais VM stāvoklis -> ElzaScreenState
+            val screenState = ElzaScreenState(
+                status = ui.status,
+                isListening = ui.isListening,
+                messages = emptyList<ChatMessage>(),
+                speakingMessage = null,
+                interactionMode = InteractionMode.CHAT
+            )
 
             ElzaScreen(
-                state = state,
+                state = screenState,
                 onStartListening = { vm.startListening() },
                 onStopListening = { vm.stopListening() },
-                onToggleMute = { /* TODO: implement mute; temporary no-op */ },
-                onModeSelected = { mode -> vm.setInteractionMode(mode) }
+                onToggleMute = { vm.stopSpeaking() },
+                onModeSelected = { /* no-op (pagaidām) */ }
             )
         }
     }

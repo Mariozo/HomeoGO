@@ -18,7 +18,7 @@
     <string name="status_mic_permission_needed">Vajag mikrofona atļauju!</string>
     <string name="status_stt_error">STT Kļūda: %1$s</string>
     <string name="status_tts_error">TTS Kļūda</string>
-    <string name="status_ai_error">AI kļūda</string>
+    <string name="status_ai_error">MI kļūda</string>
     <string name="status_no_network">Nevaru atbildēt – nav tīkla savienojuma.</string>
     <string name="status_backend_http_error">Neizdevās saņemt atbildi (HTTP %1$d).</string>
     <string name="status_backend_connection_error">Neizdevās sazināties ar Elzas serveri.</string>
