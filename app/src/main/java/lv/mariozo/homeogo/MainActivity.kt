@@ -1,16 +1,4 @@
-﻿// File: app/src/main/java/lv/mariozo/homeogo/MainActivity.kt
-// Project: HomeoGO
-// Created: 13.okt.2025 - 21:00 (Europe/Riga)
-// ver. 5.0 — Simplified: no auto-listen, only mode sync; mic permission gate
-// Purpose: Host Activity, wired up to the final ViewModel.
-
-// File: app/src/main/java/lv/mariozo/homeogo/MainActivity.kt
-// Project: HomeoGO
-// Created: 18.okt.2025 - 13:15 (Europe/Riga)
-// ver. 4.5 (i18n - Migrated hardcoded warning string to strings.xml)
-// Purpose: Host Activity, wired up to the final ViewModel.
-
-package lv.mariozo.homeogo
+﻿package lv.mariozo.homeogo
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -19,80 +7,92 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import lv.mariozo.homeogo.ui.ElzaScreen
-import lv.mariozo.homeogo.ui.ElzaViewModel
+import lv.mariozo.homeogo.ui.ElzaScreenState
 import lv.mariozo.homeogo.ui.InteractionMode
 import lv.mariozo.homeogo.ui.SettingsScreen
 import lv.mariozo.homeogo.ui.SettingsViewModel
 import lv.mariozo.homeogo.ui.theme.HomeoGOTheme
+import lv.mariozo.homeogo.ui.viewmodel.ElzaViewModel
+import androidx.compose.runtime.setValue
 
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Using applicationContext to get the string outside of a Composable context
-        val sttWarning = applicationContext.getString(R.string.main_stt_auth_warning)
-        logger.warn(sttWarning)
-
         setContent {
-            val vm: ElzaViewModel = viewModel()
-            val state by vm.uiState.collectAsStateWithLifecycle()
+            val nav = rememberNavController()
 
-            val settingsVM: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory)
-            val settings by settingsVM.ui.collectAsStateWithLifecycle(initialValue = settingsVM.ui.value)
+            // Koplietojamais Settings VM (viens un tas pats visai aktivitātei)
+            val settingsVm: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory)
+            val settingsUi by settingsVm.ui.collectAsState()
 
-            LaunchedEffect(settings.enableBargeIn) {
-                vm.setBargeInEnabled(settings.enableBargeIn)
+            // Elza VM + atļauja
+            val elzaVm: ElzaViewModel = viewModel()
+            val ui by elzaVm.ui.collectAsState()
+
+            var hasMicPermission by remember {
+                mutableStateOf(
+                    ContextCompat.checkSelfPermission(
+                        this, Manifest.permission.RECORD_AUDIO
+                    ) == PackageManager.PERMISSION_GRANTED
+                )
             }
-
-            var showSettingsScreen by remember { mutableStateOf(false) }
-
             val micPermissionLauncher = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.RequestPermission(),
-                onResult = { granted ->
-                    if (granted) vm.startListening() else vm.onPermissionDenied()
-                }
-            )
-
-            val requestMicThenStart = {
-                val granted = ContextCompat.checkSelfPermission(
-                    this@MainActivity,
-                    Manifest.permission.RECORD_AUDIO
-                ) == PackageManager.PERMISSION_GRANTED
-                if (granted) vm.startListening() else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                ActivityResultContracts.RequestPermission()
+            ) { granted ->
+                hasMicPermission = granted
+                if (granted) elzaVm.startListening()
             }
 
-            HomeoGOTheme(useDarkTheme = settings.darkTheme) {
-                if (showSettingsScreen) {
-                    SettingsScreen(
-                        vm = settingsVM,
-                        onClose = { showSettingsScreen = false }
-                    )
-                } else {
-                    ElzaScreen(
-                        state = state,
-                        onStartListening = { requestMicThenStart() },
-                        onStopListening = { vm.stopListening() },
-                        onToggleMute = { vm.toggleMuteMode() },
-                        onModeSelected = {
-                            when (it) {
-                                InteractionMode.SETTINGS -> showSettingsScreen = true
-                                else -> vm.setInteractionMode(it)
+            HomeoGOTheme(useDarkTheme = settingsUi.darkTheme) {
+                NavHost(navController = nav, startDestination = "elza") {
+
+                    composable("elza") {
+                        val screenState = ElzaScreenState(
+                            status = if (hasMicPermission) ui.status else "Nepieciešama mikrofona atļauja",
+                            isListening = ui.isListening,
+                            messages = emptyList(),
+                            speakingMessage = null,
+                            interactionMode = InteractionMode.CHAT
+                        )
+                        ElzaScreen(
+                            state = screenState,
+                            onStartListening = {
+                                if (hasMicPermission) {
+                                    elzaVm.startListening()
+                                } else {
+                                    micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                }
+                            },
+                            onStopListening = { elzaVm.stopListening() },
+                            onToggleMute = { elzaVm.stopSpeaking() },
+                            onModeSelected = { mode ->
+                                if (mode == InteractionMode.SETTINGS) {
+                                    nav.navigate("settings")
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
+
+                    composable("settings") {
+                        SettingsScreen(
+                            vm = settingsVm,
+                            onClose = { nav.popBackStack() }
+                        )
+                    }
                 }
             }
         }
     }
 }
-

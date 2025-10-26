@@ -9,4 +9,5 @@ captures/
 .cxx/
 .DS_Store
 .env
-.gitignore
+.gitignorejava_pid*.hprof
+*.hprof

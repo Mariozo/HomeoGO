@@ -1,34 +1,28 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-    File: app/src/main/AndroidManifest.xml
-    Project: HomeoGO
-    Created: 07.okt.2025 23:20 (Rīga)
-    ver. 1.3 (added cleartext + networkSecurityConfig)
-    Purpose: Application manifest for HomeoGO app. Deklarē atļaujas priekš STT/TTS
-             un piesaista galveno aktivitāti ar pielāgoto tēmu Theme.HomeoGO.
-    Comments:
-      - Permissions: INTERNET + RECORD_AUDIO (Azure Speech SDK).
-      - Theme: atsauce uz @style/Theme.HomeoGO (definēts themes.xml).
-      - MainActivity ir LAUNCHER.
--->
+<?xml version="1.0" encoding="utf-8"?>
 
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="lv.mariozo.homeogo">
+<!-- File: app/src/main/AndroidManifest.xml
+    Module: HomeoGO
+    Purpose: Application manifest with base XML theme; MainActivity is pure Compose
+    Created: 17.sep.2025   11:12
+    ver. 1.3 (Added RECORD_AUDIO permission)                                                        -->
 
-    <!-- Permissions required for Azure Speech SDK -->
-    <uses-permission android:name="android.permission.INTERNET" />
+<!-- # 1. Manifest root                                              -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Declare RECORD_AUDIO permission -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.INTERNET" />
 
-
+    <!-- # 2. Application (base XML theme)                                -->
     <application
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.HomeoGO"
-        android:usesCleartextTraffic="true"
-        android:networkSecurityConfig="@xml/network_security_config">
+        android:theme="@style/Theme.HomeoGO">
 
+        <!-- # 3. MainActivity (pure Compose, no separate theme)               -->
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -39,5 +33,4 @@
         </activity>
 
     </application>
-
 </manifest>

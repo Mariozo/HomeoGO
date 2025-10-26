@@ -1,4 +1,4 @@
-﻿// ============================================================================
+// ============================================================================
 // File: app/src/main/java/lv/mariozo/homeogo/voice/tts/TtsEngine.kt
 // Module: HomeoGO
 // Purpose: Common TTS engine interface (contract for all speech engines)
