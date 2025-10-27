@@ -12,6 +12,7 @@
 
 package lv.mariozo.homeogo.ui
 
+// Azure TTS quick test
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,6 +25,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -38,12 +40,55 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import lv.mariozo.homeogo.logic.SettingsRepository
 import lv.mariozo.homeogo.ui.theme.HomeoGOTheme
+import lv.mariozo.homeogo.voice.TtsRouter
+
+
+@Composable
+private fun AzureTtsTestSection() {
+    val ctx = LocalContext.current
+    val router = remember { TtsRouter(ctx) }
+    val scope = rememberCoroutineScope()
+    var status by remember { mutableStateOf<String?>(null) }
+
+    // BuildConfig bez importa – pilnais nosaukums
+    val key = lv.mariozo.homeogo.BuildConfig.AZURE_SPEECH_KEY
+    val region = lv.mariozo.homeogo.BuildConfig.AZURE_SPEECH_REGION
+
+    Spacer(Modifier.height(16.dp))
+    Button(onClick = {
+        router.current = TtsRouter.Engine.Azure
+        scope.launch {
+            if (key.isNullOrBlank() || key == "CHANGE_ME") {
+                status = "Azure key missing. Set BuildConfig.AZURE_SPEECH_KEY/REGION."
+                return@launch
+            }
+            status = "Azure key set: ${key.isNotBlank()}, region: $region — synthesizing…"
+            val r = router.speak("Sveiki! Šis ir Everita — Azure balss tests.")
+            status = r.fold(
+                onSuccess = { "Azure TTS: OK" },
+                onFailure = { "Azure TTS error: ${it.message}" }
+            )
+        }
+    }) { Text("Test Azure voice") }
+
+    status?.let {
+        Spacer(Modifier.height(8.dp))
+        Text(it)
+    }
+}
+
 
 // #1. ---- Stateful Wrapper Composable ---------------------------------------------
 @Composable
@@ -160,25 +205,32 @@ private fun SettingsScreenContent(
                 range = -6f..6f
             )
 
+
+            AzureTtsTestSection()
+            // SystemTtsTestSection()
+
+//  Azure test button ------------------------------------------------------
+
             /* // SPS-29: Commented out as requested.
-            HorizontalDivider()
+             HorizontalDivider()
 
-            SectionTitle("Uzvedība")
-            SettingRow(
-                title = "Pārtraukt ar balsi",
-                subtitle = "STT klausās arī Elzas runas laikā",
-            ) {
-                Switch(checked = state.enableBargeIn, onCheckedChange = vm::setEnableBargeIn)
-            }
-            SettingRow(
-                title = "Klusais režīms pēc noklusējuma",
-                subtitle = "Elza atbild tikai tekstā (TTS izslēgts)",
-            ) {
-                Switch(checked = state.defaultMuteMode, onCheckedChange = vm::setDefaultMute)
-            }
+             SectionTitle("Uzvedība")
+             SettingRow(
+                 title = "Pārtraukt ar balsi",
+                 subtitle = "STT klausās arī Elzas runas laikā",
+             ) {
+                 Switch(checked = state.enableBargeIn, onCheckedChange = vm::setEnableBargeIn)
+             }
+             SettingRow(
+                 title = "Klusais režīms pēc noklusējuma",
+                 subtitle = "Elza atbild tikai tekstā (TTS izslēgts)",
+             ) {
+                 Switch(checked = state.defaultMuteMode, onCheckedChange = vm::setDefaultMute)
+             }
+
             */
-
             Spacer(Modifier.height(24.dp))
+
         }
     }
 }
@@ -281,3 +333,4 @@ private fun PreviewSettingsScreen() {
         )
     }
 }
+

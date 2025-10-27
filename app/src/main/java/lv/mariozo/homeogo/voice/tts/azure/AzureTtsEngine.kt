@@ -6,7 +6,6 @@
 // ver. 1.2 (fixed speakTextAsync + result.reason)
 // ============================================================================
 
-// app/src/main/java/lv/mariozo/homeogo/voice/tts/azure/AzureTtsEngine.kt
 package lv.mariozo.homeogo.voice.tts.azure
 
 import android.content.Context

@@ -8,10 +8,20 @@
 //  - No cieti ieliktas versijas; IDE vairs nerādīs “update recommended”.
 //  - Provides clean task.
 
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
+
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
+fun prop(name: String, default: String = ""): String =
+    (localProps.getProperty(name) ?: System.getenv(name) ?: default)
 
 android {
     namespace = "lv.mariozo.homeogo"
@@ -25,8 +35,12 @@ android {
         versionName = "1.0"
 
         // === BuildConfig konstantes, ko izmanto ElzaViewModel/SpeechRecognizerManager ===
-        buildConfigField("String", "AZURE_SPEECH_KEY", "\"CHANGE_ME\"")
-        buildConfigField("String", "AZURE_SPEECH_REGION", "\"westeurope\"")
+        buildConfigField("String", "AZURE_SPEECH_KEY", "\"${prop("AZURE_SPEECH_KEY", "")}\"")
+        buildConfigField(
+            "String",
+            "AZURE_SPEECH_REGION",
+            "\"${prop("AZURE_SPEECH_REGION", "eastus")}\""
+        )
         buildConfigField("String", "STT_LANGUAGE", "\"lv-LV\"")
 
         buildConfigField("String", "ELZA_API_BASE", "\"https://example.com\"")
