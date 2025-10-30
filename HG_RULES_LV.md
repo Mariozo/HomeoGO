@@ -1,7 +1,10 @@
 # HomeoGO — Koda sadarbības noteikumi v1.1
 
-> **Mērķis**: skaidri, īsi un nepārprotami noteikumi, lai ChatGPT = "Koda rakstītājs", Māris = "
-> Testētājs" var strādāt bez liekām interpretācijām.
+> **Mērķis**: skaidri, īsi un nepārprotami noteikumi, lai ChatGPT = kā "Koda rakstītājs" un
+> Māris = kā "App testētājs" var sekmīgi sadarboties veidojot aplikāciju "HomeoGO"
+> Android Studio jaunākajā versijā. Aplikācija tiek veidota izmantojot mūsdienīgus
+> Kotlin kodēšanas paņēmienus un līdzekļus. Izstrādes gaita tiek dokumentēta izmantojot
+> Android Studio iebūvētos Git rīkus.
 
 ---
 
